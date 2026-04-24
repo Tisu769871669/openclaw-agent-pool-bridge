@@ -194,7 +194,11 @@ function normalizeAgents(agents, defaultAgentId) {
 
   for (const [logicalAgentId, workerList] of Object.entries(source)) {
     const key = normalizeAgentId(logicalAgentId, defaultAgentId);
-    const workers = Array.isArray(workerList) ? workerList : String(workerList || "").split(",");
+    const workers = Array.isArray(workerList)
+      ? workerList
+      : workerList && typeof workerList === "object" && Array.isArray(workerList.workers)
+        ? workerList.workers
+        : String(workerList || "").split(",");
     normalized[key] = workers.map((worker) => normalizeAgentId(worker, "")).filter(Boolean);
   }
 

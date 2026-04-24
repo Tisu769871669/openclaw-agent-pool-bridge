@@ -1,0 +1,185 @@
+#!/usr/bin/env node
+const fs = require("node:fs");
+const path = require("node:path");
+
+const { loadConfig, loadDotEnv } = require("../src/config");
+
+const DEFAULT_EXCLUDES = new Set([
+  ".git",
+  ".env",
+  ".env.local",
+  ".sessions",
+  "node_modules",
+  "logs",
+  "tmp",
+  ".tmp",
+]);
+
+function syncWorkerWorkspaces(config, logicalAgentId, options = {}) {
+  const agentId = String(logicalAgentId || config.defaultAgentId || "main").trim();
+  const template = config.agentTemplates?.[agentId];
+  if (!template) {
+    throw new Error(`No templateWorkspace configured for logical agent ${agentId}`);
+  }
+  if (!fs.existsSync(template.templateWorkspace)) {
+    throw new Error(`Template workspace does not exist: ${template.templateWorkspace}`);
+  }
+
+  const operations = [];
+  for (const worker of template.workers) {
+    const workspace = template.workerWorkspaces[worker];
+    if (!workspace) {
+      throw new Error(`No worker workspace configured for ${worker}`);
+    }
+
+    mirrorDirectory(template.templateWorkspace, workspace, {
+      dryRun: Boolean(options.dryRun),
+      operations,
+    });
+  }
+
+  return {
+    logicalAgentId: agentId,
+    templateWorkspace: template.templateWorkspace,
+    workers: template.workers,
+    operations,
+  };
+}
+
+function mirrorDirectory(sourceDir, targetDir, options) {
+  if (!options.dryRun) {
+    fs.mkdirSync(targetDir, { recursive: true });
+  }
+
+  const sourceEntries = listDirectory(sourceDir).filter((entry) => !isExcluded(entry.name, entry.path));
+  const sourceNames = new Set(sourceEntries.map((entry) => entry.name));
+
+  for (const targetEntry of listDirectory(targetDir)) {
+    if (isExcluded(targetEntry.name, targetEntry.path)) {
+      continue;
+    }
+    if (!sourceNames.has(targetEntry.name)) {
+      removePath(targetEntry.path, options);
+    }
+  }
+
+  for (const sourceEntry of sourceEntries) {
+    const targetPath = path.join(targetDir, sourceEntry.name);
+    if (sourceEntry.stats.isDirectory()) {
+      mirrorDirectory(sourceEntry.path, targetPath, options);
+    } else if (sourceEntry.stats.isFile()) {
+      copyFile(sourceEntry.path, targetPath, options);
+    }
+  }
+}
+
+function copyFile(sourcePath, targetPath, options) {
+  const operation = {
+    type: "copy",
+    source: sourcePath,
+    target: targetPath,
+  };
+  options.operations.push(operation);
+  if (options.dryRun) {
+    return;
+  }
+
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  fs.copyFileSync(sourcePath, targetPath);
+}
+
+function removePath(targetPath, options) {
+  options.operations.push({
+    type: "remove",
+    target: targetPath,
+  });
+  if (options.dryRun) {
+    return;
+  }
+  fs.rmSync(targetPath, { recursive: true, force: true });
+}
+
+function listDirectory(dir) {
+  if (!fs.existsSync(dir)) {
+    return [];
+  }
+
+  return fs.readdirSync(dir, { withFileTypes: true }).map((entry) => {
+    const entryPath = path.join(dir, entry.name);
+    return {
+      name: entry.name,
+      path: entryPath,
+      stats: fs.statSync(entryPath),
+    };
+  });
+}
+
+function isExcluded(name, fullPath) {
+  if (DEFAULT_EXCLUDES.has(name)) {
+    return true;
+  }
+  if (name.endsWith(".log")) {
+    return true;
+  }
+  const normalized = fullPath.replace(/\\/g, "/");
+  return normalized.includes("/.git/") || normalized.includes("/.sessions/");
+}
+
+function parseArgs(argv) {
+  const out = { _: [] };
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (!arg.startsWith("--")) {
+      out._.push(arg);
+      continue;
+    }
+    const key = arg.slice(2);
+    if (key === "dry-run") {
+      out[key] = true;
+      continue;
+    }
+    out[key] = argv[index + 1];
+    index += 1;
+  }
+  return out;
+}
+
+function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const rootDir = path.resolve(__dirname, "..");
+  loadDotEnv(path.join(rootDir, ".env"));
+  if (args.config) {
+    process.env.AGENT_POOL_CONFIG = args.config;
+  }
+  const config = loadConfig(process.env, rootDir);
+  const logicalAgentId = args._[0] || config.defaultAgentId;
+  const result = syncWorkerWorkspaces(config, logicalAgentId, {
+    dryRun: Boolean(args["dry-run"]),
+  });
+
+  for (const operation of result.operations) {
+    if (operation.type === "copy") {
+      console.log(`${args["dry-run"] ? "would copy" : "copied"} ${operation.source} -> ${operation.target}`);
+    } else if (operation.type === "remove") {
+      console.log(`${args["dry-run"] ? "would remove" : "removed"} ${operation.target}`);
+    }
+  }
+  console.log(
+    JSON.stringify({
+      logicalAgentId: result.logicalAgentId,
+      workers: result.workers,
+      operations: result.operations.length,
+      dryRun: Boolean(args["dry-run"]),
+    })
+  );
+}
+
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  isExcluded,
+  parseArgs,
+  syncWorkerWorkspaces,
+};

@@ -5,10 +5,12 @@
 The Sudan bridge already has useful request normalization, prompt shaping, knowledge lookup, and per-conversation queueing. For migration:
 
 1. Create worker agents such as `sudan-main-1` through `sudan-main-5`.
-2. Copy the same Sudan workspace files, persona files, skills, and knowledge files into each worker workspace.
-3. Use `examples/agent-pool.sudan.json` as the pool config.
-4. Keep the Sudan-specific prompt builder and call the shared pool runner for the actual OpenClaw invocation.
-5. Keep the public response schema unchanged.
+2. Create a canonical template workspace at `/root/openclaw-agent-templates/sudan-main`.
+3. Put the Sudan workspace files, persona files, skills, and knowledge files in that template.
+4. Use `examples/agent-pool.sudan.json` as the pool config.
+5. Run `node scripts/sync-worker-workspaces.js main --config examples/agent-pool.sudan.json` after every template change.
+6. Keep the Sudan-specific prompt builder and call the shared pool runner for the actual OpenClaw invocation.
+7. Keep the public response schema unchanged.
 
 Recommended `.env` additions:
 
@@ -37,10 +39,13 @@ node scripts/create-worker-pool.js yixiang \
   --agent-dir-root /root/.openclaw/workers/agents
 ```
 
-2. Copy each customer's agent workspace content into the matching worker workspaces.
-3. Use `examples/agent-pool.tokyoclaw.json`.
-4. Run this bridge as the `agent-bridge` PM2 process.
-5. Keep callers using:
+2. Put each customer's agent workspace content in its canonical template.
+3. Maintain templates at `/root/openclaw-agent-templates/snowchuang` and `/root/openclaw-agent-templates/yixiang`.
+4. Use `examples/agent-pool.tokyoclaw.json`.
+5. Run `node scripts/sync-worker-workspaces.js snowchuang --config examples/agent-pool.tokyoclaw.json` after every SnowChuang template change.
+6. Run `node scripts/sync-worker-workspaces.js yixiang --config examples/agent-pool.tokyoclaw.json` after every Yixiang template change.
+7. Run this bridge as the `agent-bridge` PM2 process.
+8. Keep callers using:
 
 ```http
 POST /api/agents/snowchuang/chat

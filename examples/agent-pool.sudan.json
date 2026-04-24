@@ -1,6 +1,10 @@
 {
   "defaultAgentId": "main",
   "agents": {
-    "main": ["sudan-main-1", "sudan-main-2", "sudan-main-3", "sudan-main-4", "sudan-main-5"]
+    "main": {
+      "templateWorkspace": "/root/openclaw-agent-templates/sudan-main",
+      "workerWorkspaceRoot": "/root/.openclaw/workers/workspace",
+      "workers": ["sudan-main-1", "sudan-main-2", "sudan-main-3", "sudan-main-4", "sudan-main-5"]
+    }
   }
 }

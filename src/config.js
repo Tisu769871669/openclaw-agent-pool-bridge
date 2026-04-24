@@ -33,9 +33,9 @@ function loadConfig(env = process.env, baseDir = process.cwd()) {
     : {};
 
   const defaultAgentId = String(env.DEFAULT_AGENT_ID || agentPoolConfig.defaultAgentId || "main").trim();
-  const agents = agentPoolConfig.agents || {
+  const normalizedAgentConfig = normalizeAgentConfig(agentPoolConfig.agents || {
     [defaultAgentId]: expandPool(defaultAgentId, Number(env.AGENT_POOL_SIZE || 5)),
-  };
+  }, baseDir);
 
   return {
     port: Number(env.PORT || 9070),
@@ -47,8 +47,77 @@ function loadConfig(env = process.env, baseDir = process.cwd()) {
     stickyTtlMs: Number(env.STICKY_TTL_SECONDS || 1800) * 1000,
     sessionStoreDir: resolvePath(env.SESSION_STORE_DIR || ".sessions", baseDir),
     sessionHistoryLimit: Number(env.SESSION_HISTORY_LIMIT || 20),
-    agents,
+    agents: normalizedAgentConfig.agents,
+    agentTemplates: normalizedAgentConfig.agentTemplates,
   };
+}
+
+function normalizeAgentConfig(rawAgents, baseDir) {
+  const agents = {};
+  const agentTemplates = {};
+  const source = rawAgents && typeof rawAgents === "object" ? rawAgents : {};
+
+  for (const [logicalAgentId, definition] of Object.entries(source)) {
+    if (Array.isArray(definition)) {
+      agents[logicalAgentId] = definition.map(cleanText).filter(Boolean);
+      continue;
+    }
+
+    if (typeof definition === "string") {
+      agents[logicalAgentId] = definition.split(",").map(cleanText).filter(Boolean);
+      continue;
+    }
+
+    if (definition && typeof definition === "object") {
+      const workers = Array.isArray(definition.workers)
+        ? definition.workers.map(cleanText).filter(Boolean)
+        : String(definition.workers || "").split(",").map(cleanText).filter(Boolean);
+      agents[logicalAgentId] = workers;
+
+      if (definition.templateWorkspace) {
+        const templateWorkspace = resolvePath(String(definition.templateWorkspace), baseDir);
+        const workerWorkspaceRoot = definition.workerWorkspaceRoot
+          ? resolvePath(String(definition.workerWorkspaceRoot), baseDir)
+          : "";
+        const workerWorkspaces = resolveWorkerWorkspaces(definition, workers, workerWorkspaceRoot, baseDir);
+
+        agentTemplates[logicalAgentId] = {
+          logicalAgentId,
+          templateWorkspace,
+          workerWorkspaceRoot,
+          workers,
+          workerWorkspaces,
+        };
+      }
+    }
+  }
+
+  return { agents, agentTemplates };
+}
+
+function resolveWorkerWorkspaces(definition, workers, workerWorkspaceRoot, baseDir) {
+  const raw = definition.workerWorkspaces;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    return Object.fromEntries(
+      Object.entries(raw).map(([worker, workspace]) => [worker, resolvePath(String(workspace), baseDir)])
+    );
+  }
+
+  if (Array.isArray(raw)) {
+    const out = {};
+    for (const item of raw) {
+      if (item && typeof item === "object" && item.worker && item.workspace) {
+        out[String(item.worker)] = resolvePath(String(item.workspace), baseDir);
+      }
+    }
+    return out;
+  }
+
+  if (!workerWorkspaceRoot) {
+    return {};
+  }
+
+  return Object.fromEntries(workers.map((worker) => [worker, path.join(workerWorkspaceRoot, worker)]));
 }
 
 function expandPool(logicalAgentId, size) {
@@ -63,8 +132,13 @@ function resolvePath(value, baseDir) {
   return path.resolve(baseDir, value);
 }
 
+function cleanText(value) {
+  return String(value || "").trim();
+}
+
 module.exports = {
   expandPool,
   loadConfig,
   loadDotEnv,
+  normalizeAgentConfig,
 };

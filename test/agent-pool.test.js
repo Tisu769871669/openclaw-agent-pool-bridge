@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { AgentPool, createQueueTimeoutError } = require("../src/agent-pool");
+const { AgentPool, createQueueTimeoutError, normalizeAgents } = require("../src/agent-pool");
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -104,6 +104,23 @@ test("AgentPool prefers sticky worker while it is available", async () => {
 
   assert.equal(first, "main-1");
   assert.equal(second, "main-1");
+});
+
+test("normalizeAgents accepts object-style worker definitions", () => {
+  assert.deepEqual(
+    normalizeAgents(
+      {
+        main: {
+          templateWorkspace: "/templates/main",
+          workers: ["main-1", "main-2"],
+        },
+      },
+      "main"
+    ),
+    {
+      main: ["main-1", "main-2"],
+    }
+  );
 });
 
 test("AgentPool can reassign a sticky conversation when its prior worker is busy", async () => {

@@ -38,6 +38,23 @@ node scripts/create-worker-pool.js main \
   --agent-dir-root /root/.openclaw/workers/agents
 ```
 
+Create and maintain one template workspace per logical agent:
+
+```text
+/root/openclaw-agent-templates/main/
+  AGENTS.md
+  SOUL.md
+  IDENTITY.md
+  skills/
+  knowledge/
+```
+
+Sync template changes into the worker pool:
+
+```bash
+node scripts/sync-worker-workspaces.js main --config agent-pool.config.local.json
+```
+
 Start the bridge:
 
 ```bash
@@ -87,13 +104,51 @@ The response intentionally does not expose `worker_agent_id`.
 {
   "defaultAgentId": "main",
   "agents": {
-    "main": ["main-1", "main-2", "main-3", "main-4", "main-5"],
-    "snowchuang": ["snowchuang-1", "snowchuang-2", "snowchuang-3"]
+    "main": {
+      "templateWorkspace": "/root/openclaw-agent-templates/main",
+      "workerWorkspaceRoot": "/root/.openclaw/workers/workspace",
+      "workers": ["main-1", "main-2", "main-3", "main-4", "main-5"]
+    },
+    "snowchuang": {
+      "templateWorkspace": "/root/openclaw-agent-templates/snowchuang",
+      "workerWorkspaceRoot": "/root/.openclaw/workers/workspace",
+      "workers": ["snowchuang-1", "snowchuang-2", "snowchuang-3"]
+    }
+  }
+}
+```
+
+The older shorthand still works:
+
+```json
+{
+  "agents": {
+    "main": ["main-1", "main-2"]
   }
 }
 ```
 
 If a logical agent is not configured, the bridge falls back to the default pool.
+
+## Template Workspaces
+
+Each logical customer service agent should have exactly one canonical template workspace. Edit that template, then sync it to the worker workspaces.
+
+The sync script mirrors normal customer-service files and preserves runtime state. It skips:
+
+- `.git`
+- `.env` / `.env.local`
+- `.sessions`
+- `node_modules`
+- `logs`
+- `tmp` / `.tmp`
+- `*.log`
+
+Preview changes without writing:
+
+```bash
+node scripts/sync-worker-workspaces.js main --config agent-pool.config.local.json --dry-run
+```
 
 ## Concurrency Rules
 

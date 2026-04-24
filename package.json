@@ -5,12 +5,13 @@
   "main": "src/index.js",
   "bin": {
     "openclaw-agent-pool-bridge": "src/server.js",
-    "openclaw-create-worker-pool": "scripts/create-worker-pool.js"
+    "openclaw-create-worker-pool": "scripts/create-worker-pool.js",
+    "openclaw-sync-worker-workspaces": "scripts/sync-worker-workspaces.js"
   },
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test",
-    "check": "node --check src/server.js && node --check scripts/create-worker-pool.js"
+    "check": "node --check src/server.js && node --check scripts/create-worker-pool.js && node --check scripts/sync-worker-workspaces.js"
   },
   "keywords": [
     "openclaw",
