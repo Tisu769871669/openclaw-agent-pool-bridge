@@ -13,6 +13,24 @@ Wechat and WeCom integrations often receive several customer messages at the sam
 - each worker agent handles only one request at a time;
 - bridge-owned session history keeps continuity when a conversation is moved to another worker.
 
+## Architecture
+
+See `docs/architecture.md` for the request flow, pool scheduling behavior, and template workspace sync diagrams.
+
+```mermaid
+flowchart LR
+  Caller["WeCom / WeChat caller"]
+  API["HTTP API"]
+  Queue["ConversationQueue<br/>same customer stays ordered"]
+  Pool["AgentPool<br/>max concurrent workers"]
+  Store["SessionStore<br/>recent bridge history"]
+  Runner["OpenClawRunner"]
+  Workers["worker agents<br/>main-1..main-5"]
+
+  Caller --> API --> Queue --> Pool --> Store --> Runner --> Workers
+  Workers --> Runner --> Store --> API --> Caller
+```
+
 ## Quick Start
 
 ```bash
