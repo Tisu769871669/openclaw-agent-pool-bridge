@@ -84,7 +84,7 @@ async function handleChatTurn({ logicalAgentId, normalized, traceId, pool, sessi
   return pool.withWorker(logicalAgentId, normalized.conversationId, async (lease) => {
     const requestContext = removeCurrentMessageFromContext(normalized.messageList, normalized.message);
     const storedContext = sessionStore.load(logicalAgentId, normalized.conversationId);
-    const history = requestContext.length ? requestContext : storedContext;
+    const history = storedContext.length ? storedContext : requestContext;
     const sessionId = buildSessionId(logicalAgentId, normalized.conversationId);
     const runSessionId = buildRunSessionId(logicalAgentId, normalized.conversationId, traceId);
     const prompt = buildPrompt({

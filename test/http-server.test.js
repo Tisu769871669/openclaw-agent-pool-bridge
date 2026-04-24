@@ -125,3 +125,113 @@ test("HTTP server returns 429 when the pool queue times out", async () => {
     await close(server);
   }
 });
+
+test("HTTP server prefers bridge-owned history over caller-provided messageList roles", async () => {
+  const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const runnerCalls = [];
+  const replies = ["客服旧回复", "第二次回复"];
+  const server = createApp({
+    token: "secret",
+    defaultAgentId: "main",
+    pool: new AgentPool({
+      defaultAgentId: "main",
+      queueTimeoutMs: 200,
+      stickyTtlMs: 1000,
+      agents: { main: ["main-1"] },
+    }),
+    queues: new ConversationQueueManager(),
+    sessionStore: new SessionStore({ dir: sessionDir, historyLimit: 20 }),
+    runner: async (input) => {
+      runnerCalls.push(input);
+      return { reply: replies.shift() };
+    },
+  });
+
+  const port = await listen(server);
+  try {
+    await fetch(`http://127.0.0.1:${port}/api/agents/chat`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer secret",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        conversationId: "customer-roles",
+        content: "第一条用户消息",
+      }),
+    });
+
+    await fetch(`http://127.0.0.1:${port}/api/agents/chat`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer secret",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        conversationId: "customer-roles",
+        content: {
+          messageList: [
+            { text: "客服旧回复" },
+            { text: "老师您很忙吗" },
+          ],
+        },
+      }),
+    });
+
+    assert.deepEqual(runnerCalls[1].history, [
+      { role: "user", text: "第一条用户消息" },
+      { role: "assistant", text: "客服旧回复" },
+    ]);
+    assert.match(runnerCalls[1].prompt, /2\. assistant: 客服旧回复/);
+    assert.doesNotMatch(runnerCalls[1].prompt, /2\. user: 客服旧回复/);
+  } finally {
+    await close(server);
+  }
+});
+
+test("HTTP server ignores roleless caller-provided history on cold start", async () => {
+  const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const runnerCalls = [];
+  const server = createApp({
+    token: "secret",
+    defaultAgentId: "main",
+    pool: new AgentPool({
+      defaultAgentId: "main",
+      queueTimeoutMs: 200,
+      stickyTtlMs: 1000,
+      agents: { main: ["main-1"] },
+    }),
+    queues: new ConversationQueueManager(),
+    sessionStore: new SessionStore({ dir: sessionDir, historyLimit: 20 }),
+    runner: async (input) => {
+      runnerCalls.push(input);
+      return { reply: "客服回复" };
+    },
+  });
+
+  const port = await listen(server);
+  try {
+    await fetch(`http://127.0.0.1:${port}/api/agents/chat`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer secret",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        conversationId: "customer-cold-start",
+        content: {
+          messageList: [
+            { text: "客服旧回复" },
+            { text: "老师您很忙吗" },
+          ],
+        },
+      }),
+    });
+
+    assert.equal(runnerCalls[0].message, "老师您很忙吗");
+    assert.deepEqual(runnerCalls[0].history, []);
+    assert.doesNotMatch(runnerCalls[0].prompt, /user: 客服旧回复/);
+  } finally {
+    await close(server);
+  }
+});

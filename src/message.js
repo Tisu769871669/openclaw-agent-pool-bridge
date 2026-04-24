@@ -53,15 +53,19 @@ function normalizeMessageList(messageList) {
 function removeCurrentMessageFromContext(messageList, message) {
   const text = cleanText(message);
   if (!Array.isArray(messageList) || !messageList.length || !text) {
-    return messageList || [];
+    return trustedHistory(messageList || []);
   }
 
   const copy = [...messageList];
   const last = copy[copy.length - 1];
-  if (last?.role === "user" && cleanText(last.text) === text) {
+  if (cleanText(last?.text) === text) {
     copy.pop();
   }
-  return copy;
+  return trustedHistory(copy);
+}
+
+function trustedHistory(messageList) {
+  return messageList.filter((item) => item?.role === "user" || item?.role === "assistant");
 }
 
 function buildSessionId(logicalAgentId, conversationId) {
@@ -142,11 +146,19 @@ function pickMessageText(item) {
 }
 
 function pickMessageRole(item) {
-  const role = cleanText(item?.role || item?.senderRole || item?.sender_type || item?.type).toLowerCase();
+  const role = cleanText(
+    item?.role || item?.senderRole || item?.sender_type || item?.senderType || item?.sender || item?.from || item?.type
+  ).toLowerCase();
   if (["assistant", "agent", "bot", "ai", "客服"].includes(role)) {
     return "assistant";
   }
-  return "user";
+  if (["user", "customer", "client", "human", "用户", "客户"].includes(role)) {
+    return "user";
+  }
+  if (item?.fromMe === true || item?.isFromMe === true || item?.isSelf === true || item?.self === true) {
+    return "assistant";
+  }
+  return "unknown";
 }
 
 function extractMessageFromList(messageList) {
