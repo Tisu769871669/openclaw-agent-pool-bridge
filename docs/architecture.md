@@ -2,6 +2,8 @@
 
 This bridge keeps the public chat API simple while moving concurrency control into a small set of internal components.
 
+![OpenClaw Agent Pool Bridge architecture](assets/openclaw-agent-pool-bridge-architecture.png)
+
 ## Request Flow
 
 ```mermaid
@@ -102,4 +104,3 @@ flowchart LR
 | `SessionStore` | Stores recent bridge-owned history so a conversation can move between workers safely. |
 | `OpenClawRunner` | Starts exactly one `openclaw agent` child process for one worker run. |
 | Template sync script | Copies one canonical logical-agent workspace into every worker workspace before serving traffic. |
-

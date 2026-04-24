@@ -6,3 +6,4 @@ node_modules/
 *.log
 coverage/
 .DS_Store
+docs/ops.local.zh-CN.md

@@ -15,21 +15,9 @@ Wechat and WeCom integrations often receive several customer messages at the sam
 
 ## Architecture
 
-See `docs/architecture.md` for the request flow, pool scheduling behavior, and template workspace sync diagrams.
+![OpenClaw Agent Pool Bridge architecture](docs/assets/openclaw-agent-pool-bridge-architecture.png)
 
-```mermaid
-flowchart LR
-  Caller["WeCom / WeChat caller"]
-  API["HTTP API"]
-  Queue["ConversationQueue<br/>same customer stays ordered"]
-  Pool["AgentPool<br/>max concurrent workers"]
-  Store["SessionStore<br/>recent bridge history"]
-  Runner["OpenClawRunner"]
-  Workers["worker agents<br/>main-1..main-5"]
-
-  Caller --> API --> Queue --> Pool --> Store --> Runner --> Workers
-  Workers --> Runner --> Store --> API --> Caller
-```
+See `docs/architecture.md` for the request flow, pool scheduling behavior, template workspace sync diagram, and editable Mermaid sources.
 
 ## Quick Start
 
