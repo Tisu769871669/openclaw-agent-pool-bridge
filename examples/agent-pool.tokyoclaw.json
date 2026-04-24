@@ -1,0 +1,7 @@
+{
+  "defaultAgentId": "snowchuang",
+  "agents": {
+    "snowchuang": ["snowchuang-1", "snowchuang-2", "snowchuang-3", "snowchuang-4", "snowchuang-5"],
+    "yixiang": ["yixiang-1", "yixiang-2", "yixiang-3", "yixiang-4", "yixiang-5"]
+  }
+}

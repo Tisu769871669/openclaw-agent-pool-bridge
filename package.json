@@ -1,0 +1,27 @@
+{
+  "name": "openclaw-agent-pool-bridge",
+  "version": "0.1.0",
+  "description": "A concurrency-safe HTTP bridge that maps logical OpenClaw agents to worker agent pools.",
+  "main": "src/index.js",
+  "bin": {
+    "openclaw-agent-pool-bridge": "src/server.js",
+    "openclaw-create-worker-pool": "scripts/create-worker-pool.js"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test",
+    "check": "node --check src/server.js && node --check scripts/create-worker-pool.js"
+  },
+  "keywords": [
+    "openclaw",
+    "agent",
+    "bridge",
+    "pool",
+    "wechat",
+    "wecom"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}

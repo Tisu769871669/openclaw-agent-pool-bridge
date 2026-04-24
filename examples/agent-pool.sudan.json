@@ -1,0 +1,6 @@
+{
+  "defaultAgentId": "main",
+  "agents": {
+    "main": ["sudan-main-1", "sudan-main-2", "sudan-main-3", "sudan-main-4", "sudan-main-5"]
+  }
+}
