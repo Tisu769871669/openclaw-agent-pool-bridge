@@ -1,4 +1,5 @@
 const { spawn } = require("node:child_process");
+const path = require("node:path");
 
 function runOpenClawAgent(options = {}) {
   const openclawBin = String(options.openclawBin || "openclaw").trim();
@@ -23,12 +24,7 @@ function runOpenClawAgent(options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(openclawBin, args, {
       cwd: options.cwd || process.cwd(),
-      env: {
-        ...process.env,
-        OPENCLAW_HIDE_BANNER: "1",
-        OPENCLAW_SUPPRESS_NOTES: "1",
-        NO_COLOR: "1",
-      },
+      env: buildRunnerEnv(process.env, process.execPath),
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
       shell: process.platform === "win32" && openclawBin.toLowerCase().endsWith(".cmd"),
@@ -82,6 +78,32 @@ function runOpenClawAgent(options = {}) {
       });
     });
   });
+}
+
+function buildRunnerEnv(baseEnv = process.env, nodeExecPath = process.execPath) {
+  const env = {
+    ...baseEnv,
+    OPENCLAW_HIDE_BANNER: "1",
+    OPENCLAW_SUPPRESS_NOTES: "1",
+    NO_COLOR: "1",
+  };
+  const nodeBinDir = path.dirname(String(nodeExecPath || ""));
+  if (nodeBinDir && nodeBinDir !== ".") {
+    env.PATH = prependPathSegment(env.PATH, nodeBinDir);
+  }
+  return env;
+}
+
+function prependPathSegment(value, segment) {
+  const existing = String(value || "");
+  const parts = existing.split(path.delimiter).filter(Boolean);
+  const normalizedSegment = normalizePathSegment(segment);
+  const filtered = parts.filter((part) => normalizePathSegment(part) !== normalizedSegment);
+  return [segment, ...filtered].join(path.delimiter);
+}
+
+function normalizePathSegment(value) {
+  return process.platform === "win32" ? String(value).toLowerCase() : String(value);
 }
 
 function extractReply(payload, fallbackText = "") {
@@ -147,7 +169,9 @@ function stripAnsi(value) {
 }
 
 module.exports = {
+  buildRunnerEnv,
   extractReply,
+  prependPathSegment,
   runOpenClawAgent,
   stripAnsi,
   tryParseJson,
