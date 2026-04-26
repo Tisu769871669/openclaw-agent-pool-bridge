@@ -95,12 +95,17 @@ node scripts/agents-pool.js scan
 npm link
 
 agents-pool scan
+agents-pool help
 agents-pool setup
 agents-pool status
 agents-pool pool --url http://127.0.0.1:9070
 agents-pool sync main --source-workspace /root/.openclaw/workspace
 agents-pool doctor
 ```
+
+`gents-pool` is also installed as a forgiving alias for the same CLI.
+
+中文说明：`agents-pool help` 会列出所有命令和说明；`gents-pool` 也会作为同一个命令的容错别名安装。
 
 Typical server setup:
 

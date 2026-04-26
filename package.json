@@ -5,6 +5,7 @@
   "main": "src/index.js",
   "bin": {
     "agents-pool": "scripts/agents-pool.js",
+    "gents-pool": "scripts/agents-pool.js",
     "openclaw-agents-pool": "scripts/agents-pool.js",
     "openclaw-agent-pool-bridge": "src/server.js",
     "openclaw-create-worker-pool": "scripts/create-worker-pool.js",

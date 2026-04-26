@@ -15,7 +15,10 @@ To expose the short command on a server:
 ```bash
 npm link
 agents-pool scan
+agents-pool help
 ```
+
+`gents-pool` is installed as a forgiving alias for the same command. 中文：如果少打了开头的 `a`，`gents-pool help` 也会进入同一个 CLI。
 
 ## Commands / 命令
 
@@ -26,6 +29,7 @@ agents-pool status
 agents-pool pool
 agents-pool sync <logicalAgent>
 agents-pool doctor
+agents-pool help
 ```
 
 | Command | 中文用途 |
@@ -36,6 +40,7 @@ agents-pool doctor
 | `pool` | 读取运行中的 bridge `/admin/pool`，查看每个 worker 的 busy、绑定 session、等待队列和最近错误。 |
 | `sync <logicalAgent>` | 同步某个 logical agent 的模板和 worker workspace。 |
 | `doctor` | 检查 OpenClaw CLI、配置文件、模板目录和 worker workspace 是否可见。 |
+| `help` | 显示所有命令、参数和中英文说明。 |
 
 `scan` discovers:
 

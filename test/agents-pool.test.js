@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const packageJson = require("../package.json");
 
 const {
   buildAgentDefinition,
@@ -202,4 +203,26 @@ test("pool command fetches live admin pool status with bearer token", async () =
   assert.match(text, /BUSY/);
   assert.match(text, /bridge_main_customer-1/);
   assert.match(text, /queued=1/);
+});
+
+test("help command lists every command with an operator description", async () => {
+  const output = [];
+  const code = await runCli(["help"], {
+    stdout: { write: (value) => output.push(value) },
+  });
+
+  assert.equal(code, 0);
+  const text = output.join("");
+  assert.match(text, /Commands:/);
+  assert.match(text, /scan\s+Discover local OpenClaw workspaces/);
+  assert.match(text, /setup\s+Configure logical agents/);
+  assert.match(text, /status\s+Print the static agent-pool.config.json/);
+  assert.match(text, /pool\s+Show live worker busy/);
+  assert.match(text, /sync <logicalAgent>\s+Refresh template and worker workspaces/);
+  assert.match(text, /doctor\s+Check OpenClaw CLI/);
+  assert.match(text, /help\s+Show this help/);
+});
+
+test("package exposes gents-pool as a forgiving CLI alias", () => {
+  assert.equal(packageJson.bin["gents-pool"], "scripts/agents-pool.js");
 });
