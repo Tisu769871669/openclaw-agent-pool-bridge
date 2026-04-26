@@ -27,6 +27,14 @@ server.listen(config.port, () => {
         adapter: config.promptAdapter,
         templateFile: config.promptTemplateFile,
       },
+      retrieval: {
+        enabled: config.retrievalEnabled,
+        provider: config.retrievalProvider,
+        faqFile: config.faqFile,
+        ragEndpoint: config.ragEndpoint,
+        topK: config.retrievalTopK,
+        minScore: config.retrievalMinScore,
+      },
     })
   );
 });

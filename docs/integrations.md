@@ -152,7 +152,7 @@ Example:
 中文说明：这一步先解决“不同客服怎么用自己的 prompt”。每个服务器或每个 logical agent 可以维护自己的模板文件，然后通过 `.env` 指向它。模板文件建议放在私有运维目录或业务仓库里，不要把真实内部 SOP、价格策略、客户资料直接提交到开源仓库。
 仓库里的 `examples/prompt-template.zh-CN.md` 只是通用示例，可以复制后按具体客服改写。
 
-FAQ/RAG retrieval is planned as the next adapter layer:
+Retrieval Adapter is the second adapter layer. It runs before Prompt Adapter and fills `{{retrieval_context}}`.
 
 ```env
 RETRIEVAL_ENABLED=false
@@ -163,7 +163,37 @@ RETRIEVAL_TOP_K=3
 RETRIEVAL_MIN_SCORE=0.65
 ```
 
-中文说明：苏丹 prompt 可以迁，但不要写死进开源核心。更好的方式是让每个客服在 env 或配置里选择 prompt adapter、FAQ/RAG provider 和参数；FAQ/RAG 命中内容后续会填进 `{{retrieval_context}}`。
+Local FAQ mode:
+
+```env
+RETRIEVAL_ENABLED=true
+RETRIEVAL_PROVIDER=faq
+FAQ_FILE=/root/openclaw-agent-templates/sudan-main/faq.json
+```
+
+FAQ JSON:
+
+```json
+[
+  {
+    "question": "会员费是多少？",
+    "answer": "会员费是 138 元。",
+    "keywords": ["会员费", "多少钱", "价格"]
+  }
+]
+```
+
+RAG endpoint mode:
+
+```env
+RETRIEVAL_ENABLED=true
+RETRIEVAL_PROVIDER=rag
+RAG_ENDPOINT=https://your-rag-service.example/search
+```
+
+The RAG endpoint receives `query`, `logicalAgentId`, `conversationId`, `userId`, `topK`, and `minScore`. It may return either a ready-made `context` string or a `hits` array.
+
+中文说明：苏丹 prompt 可以迁，但不要写死进开源核心。更好的方式是让每个客服在 env 或配置里选择 prompt adapter、FAQ/RAG provider 和参数；FAQ/RAG 命中内容会填进 `{{retrieval_context}}`。检索服务短暂失败时，bridge 会记录错误并继续让客服回复，避免线上聊天直接失败。
 
 ## Publishing Checklist / 发布前检查
 

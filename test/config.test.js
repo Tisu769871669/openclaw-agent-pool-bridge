@@ -94,3 +94,25 @@ test("loadConfig supports prompt adapter environment options", () => {
   assert.equal(config.promptAdapter, "template");
   assert.equal(config.promptTemplateFile, path.join(dir, "prompts", "main.md"));
 });
+
+test("loadConfig supports retrieval adapter environment options", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const config = loadConfig(
+    {
+      RETRIEVAL_ENABLED: "true",
+      RETRIEVAL_PROVIDER: "faq",
+      FAQ_FILE: "knowledge/faq.json",
+      RAG_ENDPOINT: "https://rag.example.test/search",
+      RETRIEVAL_TOP_K: "4",
+      RETRIEVAL_MIN_SCORE: "0.7",
+    },
+    dir
+  );
+
+  assert.equal(config.retrievalEnabled, true);
+  assert.equal(config.retrievalProvider, "faq");
+  assert.equal(config.faqFile, path.join(dir, "knowledge", "faq.json"));
+  assert.equal(config.ragEndpoint, "https://rag.example.test/search");
+  assert.equal(config.retrievalTopK, 4);
+  assert.equal(config.retrievalMinScore, 0.7);
+});

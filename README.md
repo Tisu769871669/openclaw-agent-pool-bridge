@@ -301,7 +301,7 @@ Example:
 
 See `examples/prompt-template.zh-CN.md` for a generic Chinese customer-service template.
 
-FAQ and RAG retrieval are planned as the next adapter layer:
+Retrieval Adapter is available now. It runs before Prompt Adapter and fills `{{retrieval_context}}`. It is disabled by default.
 
 ```env
 RETRIEVAL_ENABLED=false
@@ -312,7 +312,39 @@ RETRIEVAL_TOP_K=3
 RETRIEVAL_MIN_SCORE=0.65
 ```
 
-中文说明：苏丹式 prompt 现在可以先通过模板 adapter 迁移，不需要写死进开源核心。FAQ/RAG 后续会作为第二层 retrieval adapter，把命中的资料填入 `{{retrieval_context}}`。核心 pool 仍然只负责协议、防抖、队列、worker pool、session history 和 runner。
+Local FAQ file mode:
+
+```env
+RETRIEVAL_ENABLED=true
+RETRIEVAL_PROVIDER=faq
+FAQ_FILE=/root/openclaw-agent-templates/sudan-main/faq.json
+RETRIEVAL_TOP_K=3
+RETRIEVAL_MIN_SCORE=0.65
+```
+
+FAQ JSON can be an array, or an object with `items` / `faqs`:
+
+```json
+[
+  {
+    "question": "会员费是多少？",
+    "answer": "会员费是 138 元。",
+    "keywords": ["会员费", "多少钱", "价格"]
+  }
+]
+```
+
+RAG endpoint mode:
+
+```env
+RETRIEVAL_ENABLED=true
+RETRIEVAL_PROVIDER=rag
+RAG_ENDPOINT=https://your-rag-service.example/search
+```
+
+The bridge sends a POST body with `query`, `logicalAgentId`, `conversationId`, `userId`, `topK`, and `minScore`. The endpoint can return either `{ "context": "..." }` or `{ "hits": [...] }`.
+
+中文说明：苏丹式 prompt 现在可以先通过模板 adapter 迁移，不需要写死进开源核心。FAQ/RAG 已经作为 retrieval adapter 接入，命中内容会填入 `{{retrieval_context}}`。检索失败时 chat 请求会降级为空上下文继续跑，错误会出现在 `/admin/pool` 和 `agents-pool pool` 的 retrieval 状态里。
 
 ## Health And Metrics
 
@@ -325,7 +357,7 @@ curl http://127.0.0.1:9070/metrics
 
 `/health` exposes pool and queue counts. `/metrics` returns simple text counters that can be scraped or checked by PM2/systemd probes.
 `/admin/pool` exposes per-worker runtime state for operators: busy flag, current session binding, sticky bound sessions, pool waiters, conversation queue depth, idle duration, and the most recent worker error. It requires the same bearer token as chat requests when `AGENT_BRIDGE_TOKEN` is configured. `agents-pool pool` is the CLI wrapper for the same endpoint and reads `AGENT_BRIDGE_TOKEN` from the environment or local `.env` by default.
-`/health` and `/admin/pool` also expose debounce state and prompt adapter state: whether debounce is enabled, pending batches, pending messages, and which prompt adapter is active.
+`/health` and `/admin/pool` also expose debounce, prompt adapter, and retrieval adapter state: whether debounce is enabled, pending batches, pending messages, which prompt adapter is active, retrieval provider, last hit count, and the latest retrieval error.
 
 中文说明：日常排查优先用 `agents-pool pool` 或直接看 `/admin/pool`。它能直接回答“哪个 worker 忙、绑了哪个 session、是否有积压、最近一次错误是什么”。
 

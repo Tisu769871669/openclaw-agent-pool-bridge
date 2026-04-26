@@ -58,6 +58,12 @@ function loadConfig(env = process.env, baseDir = process.cwd()) {
     promptTemplateFile: cleanText(env.PROMPT_TEMPLATE_FILE)
       ? resolvePath(cleanText(env.PROMPT_TEMPLATE_FILE), baseDir)
       : "",
+    retrievalEnabled: parseBoolean(env.RETRIEVAL_ENABLED, false),
+    retrievalProvider: cleanText(env.RETRIEVAL_PROVIDER || "faq").toLowerCase(),
+    faqFile: cleanText(env.FAQ_FILE) ? resolvePath(cleanText(env.FAQ_FILE), baseDir) : "",
+    ragEndpoint: cleanText(env.RAG_ENDPOINT),
+    retrievalTopK: Number(env.RETRIEVAL_TOP_K || 3),
+    retrievalMinScore: Number(env.RETRIEVAL_MIN_SCORE || 0.65),
     sessionStoreDir: resolvePath(env.SESSION_STORE_DIR || ".sessions", baseDir),
     sessionHistoryLimit: Number(env.SESSION_HISTORY_LIMIT || 20),
     agents: normalizedAgentConfig.agents,

@@ -351,6 +351,119 @@ test("HTTP server sends prompt adapter output to the runner", async () => {
   }
 });
 
+test("HTTP server passes retrieval context into the prompt adapter", async () => {
+  const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const promptAdapterCalls = [];
+  const server = createApp({
+    token: "secret",
+    defaultAgentId: "main",
+    pool: new AgentPool({
+      defaultAgentId: "main",
+      queueTimeoutMs: 200,
+      stickyTtlMs: 1000,
+      agents: { main: ["main-1"] },
+    }),
+    queues: new ConversationQueueManager(),
+    sessionStore: new SessionStore({ dir: sessionDir, historyLimit: 20 }),
+    retrievalAdapter: {
+      snapshot: () => ({ enabled: true, provider: "test", lastHitCount: 1 }),
+      retrieve: async () => ({ context: "FAQ: 会员费是 138 元。", hits: [{ title: "会员 FAQ" }] }),
+    },
+    promptAdapter: {
+      snapshot: () => ({ adapter: "test" }),
+      buildPrompt: (input) => {
+        promptAdapterCalls.push(input);
+        return `context=${input.retrievalContext}; message=${input.message}`;
+      },
+    },
+    runner: async (input) => ({ reply: input.prompt }),
+  });
+
+  const port = await listen(server);
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/agents/main/chat`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer secret",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        conversationId: "customer-retrieval",
+        userId: "user-retrieval",
+        content: "会员多少钱",
+      }),
+    });
+    const payload = await response.json();
+
+    assert.equal(payload.reply, "context=FAQ: 会员费是 138 元。; message=会员多少钱");
+    assert.equal(promptAdapterCalls[0].retrievalContext, "FAQ: 会员费是 138 元。");
+
+    const admin = await fetch(`http://127.0.0.1:${port}/admin/pool`, {
+      headers: { Authorization: "Bearer secret" },
+    });
+    assert.deepEqual((await admin.json()).retrieval, {
+      enabled: true,
+      provider: "test",
+      lastHitCount: 1,
+    });
+  } finally {
+    await close(server);
+  }
+});
+
+test("HTTP server keeps serving when retrieval fails", async () => {
+  const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  let recordedError = null;
+  const server = createApp({
+    token: "secret",
+    defaultAgentId: "main",
+    pool: new AgentPool({
+      defaultAgentId: "main",
+      queueTimeoutMs: 200,
+      stickyTtlMs: 1000,
+      agents: { main: ["main-1"] },
+    }),
+    queues: new ConversationQueueManager(),
+    sessionStore: new SessionStore({ dir: sessionDir, historyLimit: 20 }),
+    retrievalAdapter: {
+      snapshot: () => ({ enabled: true, provider: "test" }),
+      retrieve: async () => {
+        throw new Error("retrieval down");
+      },
+      recordError: (error) => {
+        recordedError = error;
+      },
+    },
+    promptAdapter: {
+      snapshot: () => ({ adapter: "test" }),
+      buildPrompt: (input) => `context=${input.retrievalContext}; message=${input.message}`,
+    },
+    runner: async (input) => ({ reply: input.prompt }),
+  });
+
+  const port = await listen(server);
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/agents/main/chat`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer secret",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        conversationId: "customer-retrieval-fail",
+        content: "会员多少钱",
+      }),
+    });
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(payload.reply, "context=; message=会员多少钱");
+    assert.equal(recordedError.message, "retrieval down");
+  } finally {
+    await close(server);
+  }
+});
+
 test("HTTP server debounces same-conversation bursts into one runner call", async () => {
   const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
   const runnerCalls = [];

@@ -835,6 +835,7 @@ function printPoolAdminStatus(status, options) {
   const queues = status.queues || {};
   const debounce = status.debounce || {};
   const prompt = status.prompt || {};
+  const retrieval = status.retrieval || {};
   const workers = Array.isArray(pool.workers) ? pool.workers : [];
   const waiters = Array.isArray(pool.waiters) ? pool.waiters : [];
   writeLine(options.stdout, `Live pool: ${buildAdminPoolUrl(options.baseUrl)}`);
@@ -854,6 +855,18 @@ function printPoolAdminStatus(status, options) {
       options.stdout,
       `promptAdapter=${prompt.adapter || "none"}${prompt.templateFile ? ` template=${prompt.templateFile}` : ""}`
     );
+  }
+  if (Object.keys(retrieval).length) {
+    writeLine(
+      options.stdout,
+      `retrieval=${retrieval.enabled ? "on" : "off"} provider=${retrieval.provider || "none"} lastHitCount=${retrieval.lastHitCount || 0}`
+    );
+    if (retrieval.lastError) {
+      writeLine(
+        options.stdout,
+        `retrievalLastError=${retrieval.lastError.code || ""} ${retrieval.lastError.message || ""}`.trimEnd()
+      );
+    }
   }
   if (!workers.length) {
     writeLine(options.stdout, "workers: (none)");

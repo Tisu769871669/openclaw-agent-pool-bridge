@@ -84,7 +84,7 @@ agents-pool pool --url http://127.0.0.1:9070
 agents-pool pool --url http://127.0.0.1:9070 --json
 ```
 
-中文说明：`status` 看的是本地配置文件，`pool` 看的是正在运行的服务状态。排查“5 个 worker 是否真的并发”“哪个 worker 卡住”“哪些 session sticky 到同一个 worker”“当前是否启用了 prompt adapter”时，用 `pool`。输出里的 `promptAdapter=none` 表示沿用默认 prompt，`promptAdapter=template` 表示请求会先经过模板渲染再交给 OpenClaw。
+中文说明：`status` 看的是本地配置文件，`pool` 看的是正在运行的服务状态。排查“5 个 worker 是否真的并发”“哪个 worker 卡住”“哪些 session sticky 到同一个 worker”“当前是否启用了 prompt/retrieval adapter”时，用 `pool`。输出里的 `promptAdapter=none` 表示沿用默认 prompt，`promptAdapter=template` 表示请求会先经过模板渲染再交给 OpenClaw；`retrieval=on provider=faq` 表示已经启用本地 FAQ 检索，`retrievalLastError` 表示最近一次检索失败但 chat 已降级继续执行。
 
 `doctor` checks whether OpenClaw, the config file, template workspaces, and worker workspaces are visible.
 

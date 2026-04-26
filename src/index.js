@@ -5,6 +5,7 @@ const { DebounceQueue } = require("./debounce-queue");
 const { createApp } = require("./http-server");
 const { runOpenClawAgent } = require("./openclaw-runner");
 const { createPromptAdapter } = require("./prompt-adapter");
+const { createRetrievalAdapter } = require("./retrieval-adapter");
 const { SessionStore } = require("./session-store");
 
 function createServerFromConfig(config) {
@@ -31,6 +32,14 @@ function createServerFromConfig(config) {
     adapter: config.promptAdapter,
     templateFile: config.promptTemplateFile,
   });
+  const retrievalAdapter = createRetrievalAdapter({
+    enabled: config.retrievalEnabled,
+    provider: config.retrievalProvider,
+    faqFile: config.faqFile,
+    ragEndpoint: config.ragEndpoint,
+    topK: config.retrievalTopK,
+    minScore: config.retrievalMinScore,
+  });
   const runner = (input) =>
     runOpenClawAgent({
       openclawBin: config.openclawBin,
@@ -47,6 +56,7 @@ function createServerFromConfig(config) {
     queues,
     debounce,
     promptAdapter,
+    retrievalAdapter,
     sessionStore,
     runner,
   });
@@ -59,6 +69,7 @@ module.exports = {
   SessionStore,
   createApp,
   createPromptAdapter,
+  createRetrievalAdapter,
   createServerFromConfig,
   loadConfig,
   loadDotEnv,

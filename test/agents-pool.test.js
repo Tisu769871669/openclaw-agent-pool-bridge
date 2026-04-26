@@ -244,6 +244,11 @@ test("pool command fetches live admin pool status with bearer token", async () =
             adapter: "template",
             templateFile: "/root/prompts/main.md",
           },
+          retrieval: {
+            enabled: true,
+            provider: "faq",
+            lastHitCount: 2,
+          },
         }),
       };
     },
@@ -262,6 +267,7 @@ test("pool command fetches live admin pool status with bearer token", async () =
   assert.match(text, /incompleteExtraWait=on/);
   assert.match(text, /pendingMessages=2/);
   assert.match(text, /promptAdapter=template/);
+  assert.match(text, /retrieval=on provider=faq lastHitCount=2/);
 });
 
 test("help command lists every command with an operator description", async () => {

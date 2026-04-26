@@ -20,6 +20,7 @@ function createApp(options = {}) {
   const queues = options.queues;
   const debounce = options.debounce;
   const promptAdapter = options.promptAdapter;
+  const retrievalAdapter = options.retrievalAdapter;
   const sessionStore = options.sessionStore;
   const runner = options.runner;
 
@@ -40,6 +41,7 @@ function createApp(options = {}) {
           queues: queues.snapshot(),
           debounce: debounce?.snapshot?.() || null,
           prompt: promptAdapter?.snapshot?.() || { adapter: "none" },
+          retrieval: retrievalAdapter?.snapshot?.() || { enabled: false, provider: "none" },
         });
       }
 
@@ -51,7 +53,11 @@ function createApp(options = {}) {
         if (!authenticate(req, token)) {
           throw createApiError(401, "unauthorized", "missing or invalid bearer token");
         }
-        return sendJson(res, 200, renderPoolAdminStatus({ defaultAgentId, pool, queues, debounce, promptAdapter }));
+        return sendJson(
+          res,
+          200,
+          renderPoolAdminStatus({ defaultAgentId, pool, queues, debounce, promptAdapter, retrievalAdapter })
+        );
       }
 
       if (!authenticate(req, token)) {
@@ -73,6 +79,7 @@ function createApp(options = {}) {
             traceId,
             pool,
             promptAdapter,
+            retrievalAdapter,
             sessionStore,
             runner,
           })
@@ -96,7 +103,16 @@ function createApp(options = {}) {
   });
 }
 
-async function handleChatTurn({ logicalAgentId, normalized, traceId, pool, promptAdapter, sessionStore, runner }) {
+async function handleChatTurn({
+  logicalAgentId,
+  normalized,
+  traceId,
+  pool,
+  promptAdapter,
+  retrievalAdapter,
+  sessionStore,
+  runner,
+}) {
   return pool.withWorker(logicalAgentId, normalized.conversationId, async (lease) => {
     const requestContext = Array.isArray(normalized.historyOverride)
       ? normalized.historyOverride
@@ -105,13 +121,21 @@ async function handleChatTurn({ logicalAgentId, normalized, traceId, pool, promp
     const history = storedContext.length ? storedContext : requestContext;
     const sessionId = buildSessionId(logicalAgentId, normalized.conversationId);
     const runSessionId = buildRunSessionId(logicalAgentId, normalized.conversationId, traceId);
+    const retrieval = await safeRetrieve(retrievalAdapter, {
+      logicalAgentId,
+      conversationId: normalized.conversationId,
+      userId: normalized.userId,
+      message: normalized.message,
+      history,
+      traceId,
+    });
     const promptInput = {
       logicalAgentId,
       conversationId: normalized.conversationId,
       userId: normalized.userId,
       message: normalized.message,
       history,
-      retrievalContext: "",
+      retrievalContext: retrieval.context,
     };
     const prompt = promptAdapter?.buildPrompt
       ? promptAdapter.buildPrompt(promptInput)
@@ -124,6 +148,7 @@ async function handleChatTurn({ logicalAgentId, normalized, traceId, pool, promp
       userId: normalized.userId,
       message: normalized.message,
       history,
+      retrieval,
       prompt,
       runSessionId,
       traceId,
@@ -140,6 +165,18 @@ async function handleChatTurn({ logicalAgentId, normalized, traceId, pool, promp
       traceId,
     });
   });
+}
+
+async function safeRetrieve(retrievalAdapter, input) {
+  if (!retrievalAdapter?.retrieve) {
+    return { context: "", hits: [] };
+  }
+  try {
+    return await retrievalAdapter.retrieve(input);
+  } catch (error) {
+    retrievalAdapter.recordError?.(error);
+    return { context: "", hits: [] };
+  }
 }
 
 function matchRoute(req, defaultAgentId) {
@@ -229,7 +266,7 @@ function renderMetrics({ pool, queues, debounce }) {
   ].join("\n");
 }
 
-function renderPoolAdminStatus({ defaultAgentId, pool, queues, debounce, promptAdapter }) {
+function renderPoolAdminStatus({ defaultAgentId, pool, queues, debounce, promptAdapter, retrievalAdapter }) {
   return {
     ok: true,
     service: "openclaw-agent-pool-bridge",
@@ -239,6 +276,7 @@ function renderPoolAdminStatus({ defaultAgentId, pool, queues, debounce, promptA
     queues: queues.snapshot(),
     debounce: debounce?.snapshot?.() || null,
     prompt: promptAdapter?.snapshot?.() || { adapter: "none" },
+    retrieval: retrievalAdapter?.snapshot?.() || { enabled: false, provider: "none" },
   };
 }
 
@@ -248,4 +286,5 @@ module.exports = {
   matchRoute,
   renderPoolAdminStatus,
   renderMetrics,
+  safeRetrieve,
 };
