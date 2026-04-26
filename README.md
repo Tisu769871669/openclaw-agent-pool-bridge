@@ -67,6 +67,49 @@ Start the bridge:
 npm start
 ```
 
+## Agents Pool CLI
+
+The `agents-pool` command provides an operator-friendly setup flow on top of the lower-level scripts.
+
+```bash
+# Inside a checkout, this always works:
+node scripts/agents-pool.js scan
+
+# Optional: expose the short command on the server PATH.
+npm link
+
+agents-pool scan
+agents-pool setup
+agents-pool status
+agents-pool sync main --source-workspace /root/.openclaw/workspace
+agents-pool doctor
+```
+
+Typical server setup:
+
+```bash
+cd /opt/openclaw-agent-pool-bridge
+npm install
+
+agents-pool setup \
+  --agents main \
+  --count 5 \
+  --template-root /root/openclaw-agent-templates \
+  --worker-workspace-root /root/.openclaw/workers/workspace \
+  --worker-agent-dir-root /root/.openclaw/workers/agents \
+  --service sudan-agent-pool-bridge
+```
+
+Use `--dry-run` to preview filesystem, config, and OpenClaw CLI operations before writing:
+
+```bash
+agents-pool setup --agents main --count 5 --dry-run
+```
+
+The CLI preserves runtime state by excluding `.env`, `.sessions`, logs, temporary files, and `node_modules` when refreshing templates or workers.
+
+See `docs/cli.md` for all commands and safety rules.
+
 ## HTTP API
 
 `POST /api/agents/chat` uses `DEFAULT_AGENT_ID`.
