@@ -19,6 +19,8 @@ function createServerFromConfig(config) {
     windowMs: config.debounceWindowMs,
     maxWaitMs: config.debounceMaxWaitMs,
     maxMessages: config.debounceMaxMessages,
+    incompleteMessageExtraWaitEnabled: config.incompleteMessageExtraWaitEnabled,
+    incompleteMessageExtraWaitMs: config.incompleteMessageExtraWaitMs,
   });
   const sessionStore = new SessionStore({
     dir: config.sessionStoreDir,

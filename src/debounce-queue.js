@@ -6,6 +6,8 @@ class DebounceQueue {
     this.windowMs = Math.max(0, Number(options.windowMs || 0));
     this.maxWaitMs = Math.max(this.windowMs, Number(options.maxWaitMs || 0));
     this.maxMessages = Math.max(1, Math.floor(Number(options.maxMessages || 20)));
+    this.incompleteMessageExtraWaitEnabled = Boolean(options.incompleteMessageExtraWaitEnabled);
+    this.incompleteMessageExtraWaitMs = Math.max(0, Number(options.incompleteMessageExtraWaitMs || 0));
     this.batches = new Map();
     this.completedBatches = 0;
     this.mergedMessages = 0;
@@ -45,6 +47,8 @@ class DebounceQueue {
       windowMs: this.windowMs,
       maxWaitMs: this.maxWaitMs,
       maxMessages: this.maxMessages,
+      incompleteMessageExtraWaitEnabled: this.incompleteMessageExtraWaitEnabled,
+      incompleteMessageExtraWaitMs: this.incompleteMessageExtraWaitMs,
       pendingBatches: batches.length,
       pendingMessages: batches.reduce((total, item) => total + item.messages, 0),
       completedBatches: this.completedBatches,
@@ -81,8 +85,22 @@ class DebounceQueue {
     if (batch.quietTimer) {
       clearTimeout(batch.quietTimer);
     }
-    batch.quietTimer = setTimeout(() => this.flush(key), this.windowMs);
+    batch.quietTimer = setTimeout(() => this.flush(key), this.calculateQuietDelayMs(batch));
     batch.quietTimer.unref?.();
+  }
+
+  calculateQuietDelayMs(batch) {
+    const base = this.windowMs;
+    const last = batch.items[batch.items.length - 1];
+    const extra = this.incompleteMessageExtraWaitEnabled && looksIncompleteMessage(last?.message)
+      ? this.incompleteMessageExtraWaitMs
+      : 0;
+    const desired = base + extra;
+    if (!this.maxWaitMs) {
+      return desired;
+    }
+    const elapsed = Math.max(0, Date.now() - batch.createdAt);
+    return Math.max(0, Math.min(desired, this.maxWaitMs - elapsed));
   }
 
   async flush(key) {
@@ -146,6 +164,37 @@ function formatDebouncedMessage(messages) {
   ].join("\n");
 }
 
+function looksIncompleteMessage(message) {
+  const text = String(message || "").trim();
+  if (!text) {
+    return false;
+  }
+
+  const normalized = text.replace(/\s+/g, "");
+  const explicitCompletePatterns = [
+    /[?？]$/,
+    /(多少钱|怎么卖|有没有|还有吗|怎么吃|怎么用|帮我查|查一下|订单号|快递|发货|退款|售后)/,
+    /\d{8,}/,
+  ];
+  if (explicitCompletePatterns.some((pattern) => pattern.test(normalized))) {
+    return false;
+  }
+
+  const incompleteTailPatterns = [
+    /[，,、:：]$/,
+    /(我想问|问一下|我想咨询|就是|然后|还有|另外|那个|这个|嗯|额|呃)$/,
+  ];
+  if (incompleteTailPatterns.some((pattern) => pattern.test(normalized))) {
+    return true;
+  }
+
+  if (Array.from(normalized).length <= 4 && !/(你好|您好|谢谢|好的|收到|在吗|早上好|晚上好)/.test(normalized)) {
+    return true;
+  }
+
+  return false;
+}
+
 function collapseWhitespace(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
@@ -153,5 +202,6 @@ function collapseWhitespace(value) {
 module.exports = {
   DebounceQueue,
   formatDebouncedMessage,
+  looksIncompleteMessage,
   mergeNormalizedMessages,
 };

@@ -252,11 +252,34 @@ DEBOUNCE_ENABLED=true
 DEBOUNCE_WINDOW_MS=1500
 DEBOUNCE_MAX_WAIT_MS=5000
 DEBOUNCE_MAX_MESSAGES=20
+INCOMPLETE_MESSAGE_EXTRA_WAIT_ENABLED=true
+INCOMPLETE_MESSAGE_EXTRA_WAIT_MS=2500
 ```
 
 With debounce enabled, requests with the same `logicalAgent + conversationId` that arrive within the debounce window share one OpenClaw worker run. The bridge combines the user messages in order and all waiting HTTP callers receive the same final reply. Different conversations are not merged and can still run concurrently.
 
-中文说明：防抖合并解决“客户连发几句话，agent 回复多次”的问题。开启后，同一客户短时间内的多条消息会合成一次 agent 调用；不同客户不互相影响。
+`INCOMPLETE_MESSAGE_EXTRA_WAIT_ENABLED` is an optional extra wait policy. If the last message looks unfinished, such as ending with `我想问一下`, `还有`, `这个`, `然后`, a comma, or a colon, the bridge waits a bit longer, capped by `DEBOUNCE_MAX_WAIT_MS`. Clear questions, order numbers, logistics, refund, and after-sales queries are treated as complete.
+
+中文说明：防抖合并解决“客户连发几句话，agent 回复多次”的问题。开启后，同一客户短时间内的多条消息会合成一次 agent 调用；不同客户不互相影响。不完整消息额外等待是可选策略，适合微信里用户一句话拆成几段发的场景。
+
+## Extension Points
+
+The bridge core keeps customer-specific behavior out of the pool. Prompt shaping, FAQ lookup, and RAG retrieval should be configured as separate adapters around the generic request flow, not hard-coded for one customer service persona.
+
+Planned configuration shape:
+
+```env
+PROMPT_ADAPTER=none
+PROMPT_TEMPLATE_FILE=
+RETRIEVAL_ENABLED=false
+RETRIEVAL_PROVIDER=faq
+FAQ_FILE=
+RAG_ENDPOINT=
+RETRIEVAL_TOP_K=3
+RETRIEVAL_MIN_SCORE=0.65
+```
+
+中文说明：苏丹式 prompt、FAQ、RAG 都可以迁移，但应该做成每个客服可控的 adapter。核心 pool 只负责协议、防抖、队列、worker pool、session history 和 runner。
 
 ## Health And Metrics
 

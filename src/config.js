@@ -47,8 +47,13 @@ function loadConfig(env = process.env, baseDir = process.cwd()) {
     stickyTtlMs: Number(env.STICKY_TTL_SECONDS || 1800) * 1000,
     debounceEnabled: parseBoolean(env.DEBOUNCE_ENABLED, false),
     debounceWindowMs: Number(env.DEBOUNCE_WINDOW_MS || 0),
-    debounceMaxWaitMs: Number(env.DEBOUNCE_MAX_WAIT_MS || env.DEBOUNCE_WINDOW_MS || 0),
+    debounceMaxWaitMs: Number(env.DEBOUNCE_MAX_WAIT_MS || env.MAX_DEBOUNCE_WINDOW_MS || env.DEBOUNCE_WINDOW_MS || 0),
     debounceMaxMessages: Number(env.DEBOUNCE_MAX_MESSAGES || 20),
+    incompleteMessageExtraWaitEnabled: parseBoolean(
+      env.INCOMPLETE_MESSAGE_EXTRA_WAIT_ENABLED,
+      cleanText(env.DEBOUNCE_EXTRA_WAIT_POLICY) === "incomplete-message"
+    ),
+    incompleteMessageExtraWaitMs: Number(env.INCOMPLETE_MESSAGE_EXTRA_WAIT_MS || 0),
     sessionStoreDir: resolvePath(env.SESSION_STORE_DIR || ".sessions", baseDir),
     sessionHistoryLimit: Number(env.SESSION_HISTORY_LIMIT || 20),
     agents: normalizedAgentConfig.agents,

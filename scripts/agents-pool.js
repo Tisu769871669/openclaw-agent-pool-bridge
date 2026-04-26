@@ -845,7 +845,7 @@ function printPoolAdminStatus(status, options) {
   if (Object.keys(debounce).length) {
     writeLine(
       options.stdout,
-      `debounce=${debounce.enabled ? "on" : "off"} pendingBatches=${debounce.pendingBatches || 0} pendingMessages=${debounce.pendingMessages || 0}`
+      `debounce=${debounce.enabled ? "on" : "off"} incompleteExtraWait=${debounce.incompleteMessageExtraWaitEnabled ? "on" : "off"} pendingBatches=${debounce.pendingBatches || 0} pendingMessages=${debounce.pendingMessages || 0}`
     );
   }
   if (!workers.length) {

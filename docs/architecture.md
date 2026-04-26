@@ -11,6 +11,7 @@ This bridge keeps the public chat API simple while moving concurrency control in
 | logical agent | 外部调用方看到的客服 agent，例如 `main`、`snowchuang`。 |
 | worker agent | 内部真实执行的 OpenClaw agent，例如 `main-1` 到 `main-5`。 |
 | debounce queue | 可选防抖层，短时间合并同一客户连续消息。 |
+| extra wait policy | 可选策略；最后一条像没说完时延长防抖等待。 |
 | conversation queue | 按 `logicalAgent + conversationId` 串行同一会话的队列。 |
 | pool wait queue | 所有 worker 都忙时，请求等待空闲 worker 的队列。 |
 | sticky binding | conversation 优先复用上次 worker 的软绑定。 |
@@ -27,7 +28,7 @@ flowchart LR
   C["WeCom / personal WeChat / app caller"]
   B["Existing business bridge"]
   H["HTTP API<br/>/api/agents/chat<br/>/api/agents/:agentId/chat"]
-  D["DebounceQueue optional<br/>merge same conversation burst"]
+  D["DebounceQueue optional<br/>merge same conversation burst<br/>optional incomplete-message extra wait"]
   Q["ConversationQueue<br/>key = logicalAgent + conversationId"]
   P["AgentPool<br/>worker lease + wait queue"]
   S["SessionStore<br/>bridge-owned recent history"]
@@ -124,6 +125,7 @@ flowchart LR
 | --- | --- |
 | `HttpServer` | Preserves the existing synchronous request and response protocol. |
 | `DebounceQueue` | Optionally merges short same-conversation message bursts into one agent turn. |
+| Extra wait policy | Optionally extends debounce when the last message looks unfinished. |
 | `ConversationQueue` | Serializes messages for the same `logicalAgent + conversationId`. |
 | `AgentPool` | Leases one worker per request, tracks busy workers, and returns 429 after queue timeout. |
 | `SessionStore` | Stores recent bridge-owned history so a conversation can move between workers safely. |
@@ -134,6 +136,7 @@ flowchart LR
 
 - `HttpServer` 保持旧接口兼容，并提供 `/health`、`/metrics`、`/admin/pool`。
 - `DebounceQueue` 可选启用，解决“客户连续发几条，agent 回复多次”的问题。
+- `Extra wait policy` 可选启用，解决“用户明显还没说完，需要多等一下”的问题。
 - `ConversationQueue` 解决“同一个客户连续发消息不能乱序”的问题。
 - `AgentPool` 解决“多个客户能否真正并发，以及 worker 全忙时怎么办”的问题。
 - `SessionStore` 解决“conversation 换 worker 后仍能看到最近上下文”的问题。

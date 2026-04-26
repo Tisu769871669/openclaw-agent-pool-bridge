@@ -55,10 +55,28 @@ test("loadConfig supports debounce environment options", () => {
     DEBOUNCE_WINDOW_MS: "1500",
     DEBOUNCE_MAX_WAIT_MS: "5000",
     DEBOUNCE_MAX_MESSAGES: "12",
+    INCOMPLETE_MESSAGE_EXTRA_WAIT_ENABLED: "true",
+    INCOMPLETE_MESSAGE_EXTRA_WAIT_MS: "2500",
   });
 
   assert.equal(config.debounceEnabled, true);
   assert.equal(config.debounceWindowMs, 1500);
   assert.equal(config.debounceMaxWaitMs, 5000);
   assert.equal(config.debounceMaxMessages, 12);
+  assert.equal(config.incompleteMessageExtraWaitEnabled, true);
+  assert.equal(config.incompleteMessageExtraWaitMs, 2500);
+});
+
+test("loadConfig supports legacy max debounce env alias and extra wait policy alias", () => {
+  const config = loadConfig({
+    DEBOUNCE_ENABLED: "true",
+    DEBOUNCE_WINDOW_MS: "1500",
+    MAX_DEBOUNCE_WINDOW_MS: "6000",
+    DEBOUNCE_EXTRA_WAIT_POLICY: "incomplete-message",
+    INCOMPLETE_MESSAGE_EXTRA_WAIT_MS: "2500",
+  });
+
+  assert.equal(config.debounceMaxWaitMs, 6000);
+  assert.equal(config.incompleteMessageExtraWaitEnabled, true);
+  assert.equal(config.incompleteMessageExtraWaitMs, 2500);
 });

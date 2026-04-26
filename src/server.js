@@ -20,6 +20,8 @@ server.listen(config.port, () => {
         enabled: config.debounceEnabled,
         windowMs: config.debounceWindowMs,
         maxWaitMs: config.debounceMaxWaitMs,
+        incompleteMessageExtraWaitEnabled: config.incompleteMessageExtraWaitEnabled,
+        incompleteMessageExtraWaitMs: config.incompleteMessageExtraWaitMs,
       },
     })
   );

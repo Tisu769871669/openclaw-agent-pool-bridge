@@ -39,6 +39,8 @@ STICKY_TTL_SECONDS=1800
 DEBOUNCE_ENABLED=true
 DEBOUNCE_WINDOW_MS=1500
 DEBOUNCE_MAX_WAIT_MS=5000
+INCOMPLETE_MESSAGE_EXTRA_WAIT_ENABLED=true
+INCOMPLETE_MESSAGE_EXTRA_WAIT_MS=2500
 ```
 
 ## TokyoClaw Agent Bridge / TokyoClaw 业务桥
@@ -108,7 +110,28 @@ curl -sS -H "Authorization: Bearer $AGENT_BRIDGE_TOKEN" http://127.0.0.1:9070/ad
 
 For WeChat-style callers, enable debounce when customers often send one sentence split across several messages. The bridge merges only the same `logicalAgent + conversationId`; different customers still run concurrently.
 
+The optional incomplete-message extra wait policy delays a little longer when the last message looks unfinished. This is useful for messages that end with connector words such as `还有`, `这个`, `然后`, or punctuation such as commas and colons. The wait is always capped by `DEBOUNCE_MAX_WAIT_MS`.
+
 中文说明：防抖放在 agent pool bridge 内部以后，Sudan、TokyoClaw 或其他客服服务器都可以复用同一套机制。业务桥不用自己再实现“等一等再发给 agent”，只要保持 `conversationId` 稳定即可。
+
+## Prompt And Retrieval Adapters / Prompt 和检索适配
+
+Customer-specific prompt shaping, FAQ, and RAG should stay out of the pool core. Use adapters around the generic bridge flow so each customer service agent can opt in and configure its own behavior.
+
+Future adapter-style configuration:
+
+```env
+PROMPT_ADAPTER=none
+PROMPT_TEMPLATE_FILE=
+RETRIEVAL_ENABLED=false
+RETRIEVAL_PROVIDER=faq
+FAQ_FILE=
+RAG_ENDPOINT=
+RETRIEVAL_TOP_K=3
+RETRIEVAL_MIN_SCORE=0.65
+```
+
+中文说明：苏丹 prompt 可以迁，但不要写死进开源核心。更好的方式是让每个客服在 env 或配置里选择 prompt adapter、FAQ/RAG provider 和参数。
 
 ## Publishing Checklist / 发布前检查
 

@@ -236,6 +236,7 @@ test("pool command fetches live admin pool status with bearer token", async () =
           },
           debounce: {
             enabled: true,
+            incompleteMessageExtraWaitEnabled: true,
             pendingBatches: 1,
             pendingMessages: 2,
           },
@@ -254,6 +255,7 @@ test("pool command fetches live admin pool status with bearer token", async () =
   assert.match(text, /bridge_main_customer-1/);
   assert.match(text, /queued=1/);
   assert.match(text, /debounce=on/);
+  assert.match(text, /incompleteExtraWait=on/);
   assert.match(text, /pendingMessages=2/);
 });
 
