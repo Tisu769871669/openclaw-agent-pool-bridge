@@ -11,6 +11,7 @@ const {
   executeSetupPlan,
   mergeAgentConfig,
   parseSelection,
+  runCli,
 } = require("../scripts/agents-pool");
 
 test("discoverLocalWorkspaces finds main and named OpenClaw workspaces", () => {
@@ -136,4 +137,69 @@ test("executeSetupPlan dry-run tolerates templates that would be created", () =>
   assert.equal(fs.existsSync(path.join(dir, "templates", "main")), false);
   assert.equal(fs.existsSync(path.join(dir, "agent-pool.config.json")), false);
   assert.equal(output.some((line) => line.includes("would sync main")), true);
+});
+
+test("pool command fetches live admin pool status with bearer token", async () => {
+  const output = [];
+  const requests = [];
+  const code = await runCli(["pool", "--url", "http://127.0.0.1:9070", "--token", "secret-token"], {
+    stdout: { write: (value) => output.push(value) },
+    stderr: { write: () => {} },
+    fetch: async (url, options) => {
+      requests.push({ url, options });
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ok: true,
+          generatedAt: "2026-04-26T12:00:00.000Z",
+          defaultAgentId: "main",
+          pool: {
+            workerCount: 2,
+            busyWorkers: 1,
+            queueDepth: 1,
+            workers: [
+              {
+                logicalAgentId: "main",
+                workerAgentId: "main-1",
+                busy: true,
+                currentSession: "bridge_main_customer-1",
+                currentConversationId: "customer-1",
+                boundSessions: [],
+                busyForMs: 1234,
+                idleForMs: 0,
+              },
+              {
+                logicalAgentId: "main",
+                workerAgentId: "main-2",
+                busy: false,
+                currentSession: null,
+                currentConversationId: null,
+                boundSessions: [{ sessionId: "bridge_main_customer-2" }],
+                busyForMs: 0,
+                idleForMs: 5000,
+              },
+            ],
+            waiters: [{ sessionId: "bridge_main_customer-3", queuedForMs: 2500 }],
+          },
+          queues: {
+            conversationQueues: 1,
+            activeTasks: 1,
+            pendingTasks: 0,
+            queues: [],
+          },
+        }),
+      };
+    },
+  });
+
+  assert.equal(code, 0);
+  assert.equal(requests[0].url, "http://127.0.0.1:9070/admin/pool");
+  assert.equal(requests[0].options.headers.Authorization, "Bearer secret-token");
+  const text = output.join("");
+  assert.match(text, /Live pool/);
+  assert.match(text, /main-1/);
+  assert.match(text, /BUSY/);
+  assert.match(text, /bridge_main_customer-1/);
+  assert.match(text, /queued=1/);
 });

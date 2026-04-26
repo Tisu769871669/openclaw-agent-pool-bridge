@@ -2,6 +2,8 @@
 
 `agents-pool` is an operator-friendly command for discovering local OpenClaw agents, creating worker pools, updating `agent-pool.config.json`, and syncing template workspaces into worker workspaces.
 
+中文导读：`agents-pool` 是这个项目的主要运维命令。它帮助你扫描本机 OpenClaw 环境、配置 logical agent 到 worker pool 的映射、刷新模板 workspace、同步 worker workspace，并做上线前诊断。
+
 Inside a repository checkout, run it directly:
 
 ```bash
@@ -15,15 +17,25 @@ npm link
 agents-pool scan
 ```
 
-## Commands
+## Commands / 命令
 
 ```bash
 agents-pool scan
 agents-pool setup
 agents-pool status
+agents-pool pool
 agents-pool sync <logicalAgent>
 agents-pool doctor
 ```
+
+| Command | 中文用途 |
+| --- | --- |
+| `scan` | 扫描本机 OpenClaw workspace、agent 目录和 `openclaw agents list`。 |
+| `setup` | 交互式或参数化创建/更新 worker pool 配置。 |
+| `status` | 打印当前 `agent-pool.config.json`。 |
+| `pool` | 读取运行中的 bridge `/admin/pool`，查看每个 worker 的 busy、绑定 session、等待队列和最近错误。 |
+| `sync <logicalAgent>` | 同步某个 logical agent 的模板和 worker workspace。 |
+| `doctor` | 检查 OpenClaw CLI、配置文件、模板目录和 worker workspace 是否可见。 |
 
 `scan` discovers:
 
@@ -56,9 +68,37 @@ template workspace -> worker workspaces
 
 `status` prints the current pool config.
 
+`pool` prints live runtime state from the running bridge:
+
+```bash
+agents-pool pool --url http://127.0.0.1:9070
+agents-pool pool --url http://127.0.0.1:9070 --json
+```
+
+中文说明：`status` 看的是本地配置文件，`pool` 看的是正在运行的服务状态。排查“5 个 worker 是否真的并发”“哪个 worker 卡住”“哪些 session sticky 到同一个 worker”时，用 `pool`。
+
 `doctor` checks whether OpenClaw, the config file, template workspaces, and worker workspaces are visible.
 
-## Typical Setup
+## Common Options / 常用参数
+
+| Option | 中文说明 |
+| --- | --- |
+| `--config agent-pool.config.json` | 指定 pool 配置文件。 |
+| `--json` | 输出 JSON，适合脚本消费。 |
+| `--url http://127.0.0.1:9070` | `pool` 命令访问的 bridge 地址。 |
+| `--token TOKEN` | `pool` 命令访问 `/admin/pool` 时使用的 Bearer token。 |
+| `--token-env AGENT_BRIDGE_TOKEN` | 从指定环境变量读取 Bearer token；默认读取 `AGENT_BRIDGE_TOKEN`。 |
+| `--dry-run` | 只预览，不写文件、不创建 worker、不同步。 |
+| `--yes` | 尽量跳过交互确认，适合自动化脚本。 |
+| `--agents main,agent1` | 指定要配置的 logical agents。 |
+| `--count 5` | 每个 logical agent 创建多少个 worker。 |
+| `--template-root PATH` | logical agent 模板 workspace 的根目录。 |
+| `--worker-workspace-root PATH` | worker workspace 根目录。 |
+| `--worker-agent-dir-root PATH` | worker agent 配置目录根目录。 |
+| `--source-workspace PATH` | `sync` 时先从源 workspace 刷新模板，再同步 worker。 |
+| `--service SERVICE_NAME` | setup 完成后可重启的 systemd 服务名。 |
+
+## Typical Setup / 典型安装配置
 
 ```bash
 cd /opt/openclaw-agent-pool-bridge
@@ -80,7 +120,9 @@ Preview before writing:
 agents-pool setup --agents main --count 5 --dry-run
 ```
 
-## Safety Rules
+中文建议：第一次操作一定先加 `--dry-run`。确认模板路径、worker 路径、删除列表都符合预期后，再去掉 `--dry-run`。
+
+## Safety Rules / 安全规则
 
 The CLI excludes runtime state when refreshing templates and workers:
 
@@ -100,7 +142,9 @@ If a worker agent already appears in `openclaw agents list` or in the worker age
 
 The CLI refuses to mirror a source workspace into the same path or into obviously unsafe target paths such as the filesystem root or home directory.
 
-## Useful Examples
+中文补充：worker workspace 是运行副本，尽量不要手改。日常维护应改源 workspace 或模板 workspace，再通过 CLI 同步。
+
+## Useful Examples / 常用示例
 
 Scan in JSON:
 
@@ -125,6 +169,9 @@ Check the deployment:
 
 ```bash
 agents-pool doctor
+agents-pool pool --url http://127.0.0.1:9070
 curl -sS http://127.0.0.1:9070/health
+curl -sS -H "Authorization: Bearer $AGENT_BRIDGE_TOKEN" http://127.0.0.1:9070/admin/pool
 ```
 
+中文判断：如果你要确认 5 并发是否跑起来，`doctor` 只能证明配置和目录大体可用；真正的运行态要看 `agents-pool pool` 或 `/admin/pool` 里的 `pool.workerCount`、`pool.busyWorkers`、`pool.queueDepth` 和每个 worker 的 `busy`/`idleForMs`。

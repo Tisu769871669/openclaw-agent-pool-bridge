@@ -30,12 +30,17 @@ class AgentPool {
     this.busy = new Set();
     this.sticky = new Map();
     this.waiters = [];
+    this.workerState = new Map();
+    this.startedAt = nowMs();
   }
 
   async withWorker(logicalAgentId, conversationId, fn) {
     const lease = await this.acquire(logicalAgentId, conversationId);
     try {
       return await fn(lease);
+    } catch (error) {
+      this.recordLeaseError(lease, error);
+      throw error;
     } finally {
       this.release(lease);
     }
@@ -54,6 +59,8 @@ class AgentPool {
       const waiter = {
         logicalAgentId: normalizedLogicalAgentId,
         conversationId: normalizedConversationId,
+        sessionId: buildSessionId(normalizedLogicalAgentId, normalizedConversationId),
+        enqueuedAt: nowMs(),
         resolve,
         reject,
         timer: null,
@@ -75,11 +82,20 @@ class AgentPool {
     }
 
     this.busy.delete(lease.workerAgentId);
+    const state = this.ensureWorkerState(lease.workerAgentId);
+    state.busy = false;
+    state.currentSession = null;
+    state.currentLogicalAgentId = null;
+    state.currentConversationId = null;
+    state.acquiredAt = null;
+    state.lastReleasedAt = nowMs();
+
     this.setSticky(lease.logicalAgentId, lease.conversationId, lease.workerAgentId);
     this.drainWaiters();
   }
 
   snapshot() {
+    const currentTime = nowMs();
     const agents = {};
     for (const [logicalAgentId, workers] of Object.entries(this.agents)) {
       agents[logicalAgentId] = {
@@ -89,12 +105,25 @@ class AgentPool {
       };
     }
 
+    const configuredWorkers = Object.entries(this.agents).flatMap(([logicalAgentId, workers]) =>
+      workers.map((workerAgentId) => ({ logicalAgentId, workerAgentId }))
+    );
+
     return {
       defaultAgentId: this.defaultAgentId,
       workerCount: Object.values(this.agents).reduce((total, workers) => total + workers.length, 0),
       busyWorkers: this.busy.size,
       queueDepth: this.waiters.length,
       agents,
+      workers: configuredWorkers.map(({ logicalAgentId, workerAgentId }) =>
+        this.workerSnapshot(logicalAgentId, workerAgentId, currentTime)
+      ),
+      waiters: this.waiters.map((waiter) => ({
+        logicalAgentId: waiter.logicalAgentId,
+        conversationId: waiter.conversationId,
+        sessionId: waiter.sessionId,
+        queuedForMs: Math.max(0, currentTime - waiter.enqueuedAt),
+      })),
     };
   }
 
@@ -107,11 +136,20 @@ class AgentPool {
     }
 
     this.busy.add(workerAgentId);
+    const state = this.ensureWorkerState(workerAgentId);
+    const acquiredAt = nowMs();
+    state.busy = true;
+    state.currentSession = buildSessionId(logicalAgentId, conversationId);
+    state.currentLogicalAgentId = logicalAgentId;
+    state.currentConversationId = conversationId;
+    state.acquiredAt = acquiredAt;
 
     return {
       logicalAgentId,
       conversationId,
       workerAgentId,
+      sessionId: state.currentSession,
+      acquiredAt,
     };
   }
 
@@ -186,6 +224,72 @@ class AgentPool {
       waiter.timer = null;
     }
   }
+
+  recordLeaseError(lease, error) {
+    if (!lease?.workerAgentId) {
+      return;
+    }
+    const state = this.ensureWorkerState(lease.workerAgentId);
+    state.lastError = {
+      at: new Date().toISOString(),
+      code: error?.code || "",
+      statusCode: error?.statusCode || 0,
+      message: String(error?.message || "Unknown error").slice(0, 500),
+      sessionId: lease.sessionId || buildSessionId(lease.logicalAgentId, lease.conversationId),
+    };
+  }
+
+  ensureWorkerState(workerAgentId) {
+    if (!this.workerState.has(workerAgentId)) {
+      this.workerState.set(workerAgentId, {
+        busy: false,
+        currentSession: null,
+        currentLogicalAgentId: null,
+        currentConversationId: null,
+        acquiredAt: null,
+        lastReleasedAt: this.startedAt,
+        lastError: null,
+      });
+    }
+    return this.workerState.get(workerAgentId);
+  }
+
+  workerSnapshot(configuredLogicalAgentId, workerAgentId, currentTime) {
+    const state = this.ensureWorkerState(workerAgentId);
+    const boundSessions = this.boundSessionsForWorker(workerAgentId, currentTime);
+    return {
+      logicalAgentId: configuredLogicalAgentId,
+      workerAgentId,
+      busy: state.busy,
+      currentSession: state.currentSession,
+      currentLogicalAgentId: state.currentLogicalAgentId,
+      currentConversationId: state.currentConversationId,
+      boundSessions,
+      busyForMs: state.busy && state.acquiredAt ? Math.max(0, currentTime - state.acquiredAt) : 0,
+      idleForMs: state.busy ? 0 : Math.max(0, currentTime - (state.lastReleasedAt || this.startedAt)),
+      lastError: state.lastError,
+    };
+  }
+
+  boundSessionsForWorker(workerAgentId, currentTime) {
+    const sessions = [];
+    for (const [key, sticky] of this.sticky.entries()) {
+      if (sticky.workerAgentId !== workerAgentId) {
+        continue;
+      }
+      if (sticky.expiresAt <= currentTime) {
+        continue;
+      }
+      const { logicalAgentId, conversationId } = parseStickyKey(key);
+      sessions.push({
+        logicalAgentId,
+        conversationId,
+        sessionId: buildSessionId(logicalAgentId, conversationId),
+        stickyExpiresInMs: Math.max(0, sticky.expiresAt - currentTime),
+      });
+    }
+    return sessions;
+  }
 }
 
 function normalizeAgents(agents, defaultAgentId) {
@@ -217,8 +321,27 @@ function stickyKey(logicalAgentId, conversationId) {
   return `${logicalAgentId}::${conversationId}`;
 }
 
+function parseStickyKey(key) {
+  const separatorIndex = key.indexOf("::");
+  if (separatorIndex === -1) {
+    return {
+      logicalAgentId: key,
+      conversationId: "unknown",
+    };
+  }
+  return {
+    logicalAgentId: key.slice(0, separatorIndex),
+    conversationId: key.slice(separatorIndex + 2),
+  };
+}
+
+function buildSessionId(logicalAgentId, conversationId) {
+  return `bridge_${logicalAgentId}_${conversationId}`;
+}
+
 module.exports = {
   AgentPool,
+  buildSessionId,
   createQueueTimeoutError,
   normalizeAgents,
 };

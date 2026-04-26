@@ -43,6 +43,13 @@ function createApp(options = {}) {
         return sendText(res, 200, renderMetrics({ pool, queues }));
       }
 
+      if (route.type === "adminPool") {
+        if (!authenticate(req, token)) {
+          throw createApiError(401, "unauthorized", "missing or invalid bearer token");
+        }
+        return sendJson(res, 200, renderPoolAdminStatus({ defaultAgentId, pool, queues }));
+      }
+
       if (!authenticate(req, token)) {
         throw createApiError(401, "unauthorized", "missing or invalid bearer token");
       }
@@ -126,6 +133,9 @@ function matchRoute(req, defaultAgentId) {
   if (req.method === "GET" && url.pathname === "/metrics") {
     return { type: "metrics" };
   }
+  if (req.method === "GET" && url.pathname === "/admin/pool") {
+    return { type: "adminPool" };
+  }
   if (req.method === "POST" && url.pathname === "/api/agents/chat") {
     return { type: "chat", logicalAgentId: defaultAgentId };
   }
@@ -198,9 +208,21 @@ function renderMetrics({ pool, queues }) {
   ].join("\n");
 }
 
+function renderPoolAdminStatus({ defaultAgentId, pool, queues }) {
+  return {
+    ok: true,
+    service: "openclaw-agent-pool-bridge",
+    generatedAt: new Date().toISOString(),
+    defaultAgentId,
+    pool: pool.snapshot(),
+    queues: queues.snapshot(),
+  };
+}
+
 module.exports = {
   createApp,
   handleChatTurn,
   matchRoute,
+  renderPoolAdminStatus,
   renderMetrics,
 };

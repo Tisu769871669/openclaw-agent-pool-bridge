@@ -59,6 +59,56 @@ test("AgentPool releases a worker after task failure", async () => {
   assert.equal(worker, "main-1");
 });
 
+test("AgentPool snapshot exposes worker runtime state", async () => {
+  const pool = new AgentPool({
+    defaultAgentId: "main",
+    queueTimeoutMs: 200,
+    stickyTtlMs: 1000,
+    agents: {
+      main: ["main-1"],
+    },
+  });
+
+  let releaseWorker;
+  const running = pool.withWorker(
+    "main",
+    "conversation-1",
+    () =>
+      new Promise((resolve) => {
+        releaseWorker = () => resolve("done");
+      })
+  );
+
+  await delay(5);
+
+  const busySnapshot = pool.snapshot();
+  assert.equal(busySnapshot.workers[0].workerAgentId, "main-1");
+  assert.equal(busySnapshot.workers[0].busy, true);
+  assert.equal(busySnapshot.workers[0].currentSession, "bridge_main_conversation-1");
+  assert.equal(busySnapshot.workers[0].currentConversationId, "conversation-1");
+  assert.equal(busySnapshot.workers[0].idleForMs, 0);
+  assert.ok(busySnapshot.workers[0].busyForMs >= 0);
+
+  releaseWorker();
+  assert.equal(await running, "done");
+
+  const idleSnapshot = pool.snapshot();
+  assert.equal(idleSnapshot.workers[0].busy, false);
+  assert.equal(idleSnapshot.workers[0].currentSession, null);
+  assert.equal(idleSnapshot.workers[0].boundSessions[0].sessionId, "bridge_main_conversation-1");
+
+  await assert.rejects(
+    pool.withWorker("main", "conversation-2", async () => {
+      throw new Error("runner failed hard");
+    }),
+    /runner failed hard/
+  );
+
+  const errorSnapshot = pool.snapshot();
+  assert.equal(errorSnapshot.workers[0].lastError.message, "runner failed hard");
+  assert.equal(errorSnapshot.workers[0].lastError.sessionId, "bridge_main_conversation-2");
+});
+
 test("AgentPool rejects queued work after queue timeout", async () => {
   const pool = new AgentPool({
     defaultAgentId: "main",

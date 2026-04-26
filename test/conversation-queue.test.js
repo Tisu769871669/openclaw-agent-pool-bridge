@@ -53,6 +53,36 @@ test("ConversationQueueManager allows different conversations to run concurrentl
   assert.equal(queues.snapshot().conversationQueues, 0);
 });
 
+test("ConversationQueueManager snapshot exposes active and pending turns", async () => {
+  const queues = new ConversationQueueManager();
+  let releaseFirst;
+
+  const first = queues.run(
+    "main",
+    "customer-1",
+    () =>
+      new Promise((resolve) => {
+        releaseFirst = () => resolve("first");
+      })
+  );
+
+  await delay(5);
+
+  const second = queues.run("main", "customer-1", async () => "second");
+  await delay(5);
+
+  const snapshot = queues.snapshot();
+  assert.equal(snapshot.conversationQueues, 1);
+  assert.equal(snapshot.activeTurns, 1);
+  assert.equal(snapshot.queuedTurns, 1);
+  assert.equal(snapshot.conversations[0].logicalAgentId, "main");
+  assert.equal(snapshot.conversations[0].conversationId, "customer-1");
+
+  releaseFirst();
+  assert.deepEqual(await Promise.all([first, second]), ["first", "second"]);
+  assert.equal(queues.snapshot().conversationQueues, 0);
+});
+
 test("ConversationQueueManager keeps a later task queued while an earlier cleanup runs", async () => {
   const queues = new ConversationQueueManager();
   const events = [];

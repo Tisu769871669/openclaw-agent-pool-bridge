@@ -4,6 +4,18 @@ A small Node.js HTTP bridge that maps one public logical OpenClaw agent to a poo
 
 It keeps the existing `/api/agents/chat` and `/api/agents/:agentId/chat` protocol, while preventing concurrent requests from piling onto one `main` agent session.
 
+中文速览：这是一个 OpenClaw agent 并发桥接服务。外部仍然调用兼容的 chat HTTP 接口，bridge 在内部把请求分发到多个隔离 worker agent，并负责同一会话串行、不同会话并发、worker sticky、会话历史和运行态排查。
+
+## Documentation / 文档
+
+| Document | 中文说明 |
+| --- | --- |
+| `README.md` | 项目入口、快速启动、HTTP API、配置、并发规则。 |
+| `docs/architecture.md` | 架构图、请求链路、pool/queue 行为、组件职责。 |
+| `docs/cli.md` | `agents-pool` CLI 的命令、参数、安全规则和示例。 |
+| `docs/integrations.md` | Sudan、TokyoClaw、WeCom 等业务桥接集成方式。 |
+| `docs/ops.local.zh-CN.md` | 中文/English-friendly 本地和服务器运维手册，包含状态检查、同步、排障、回滚。 |
+
 ## Why
 
 Wechat and WeCom integrations often receive several customer messages at the same time. Calling one `openclaw agent --agent main` directly for every request can mix context or overload the same runtime. This bridge separates concerns:
@@ -18,6 +30,8 @@ Wechat and WeCom integrations often receive several customer messages at the sam
 ![OpenClaw Agent Pool Bridge architecture](docs/assets/openclaw-agent-pool-bridge-architecture.png)
 
 See `docs/architecture.md` for the request flow, pool scheduling behavior, template workspace sync diagram, and editable Mermaid sources.
+
+中文说明：如果你想先看“请求如何从外部服务进入 worker pool”，先读 `docs/architecture.md`；如果你是在服务器上维护服务，直接读 `docs/ops.local.zh-CN.md`。
 
 ## Quick Start
 
@@ -71,6 +85,8 @@ npm start
 
 The `agents-pool` command provides an operator-friendly setup flow on top of the lower-level scripts.
 
+中文说明：`agents-pool` 是运维入口，负责扫描本机 OpenClaw workspace/agent、创建或配置 worker pool、同步模板到 worker、做环境诊断。
+
 ```bash
 # Inside a checkout, this always works:
 node scripts/agents-pool.js scan
@@ -81,6 +97,7 @@ npm link
 agents-pool scan
 agents-pool setup
 agents-pool status
+agents-pool pool --url http://127.0.0.1:9070
 agents-pool sync main --source-workspace /root/.openclaw/workspace
 agents-pool doctor
 ```
@@ -116,6 +133,8 @@ See `docs/cli.md` for all commands and safety rules.
 
 `POST /api/agents/:agentId/chat` uses the `agentId` path segment as the logical agent.
 
+中文说明：调用方只需要关心 logical agent 和 conversation。worker agent ID 不会暴露给业务调用方，避免外部依赖内部 worker 编号。
+
 ```json
 {
   "conversationId": "wxid_customer_001",
@@ -148,6 +167,8 @@ The response intentionally does not expose `worker_agent_id`.
 ## Pool Configuration
 
 `agent-pool.config.json` maps public logical agents to private worker agents:
+
+中文说明：`agents` 里的 key 是外部可见的 logical agent，`workers` 是内部真实执行的 worker agent 列表。
 
 ```json
 {
@@ -183,6 +204,8 @@ If a logical agent is not configured, the bridge falls back to the default pool.
 
 Each logical customer service agent should have exactly one canonical template workspace. Edit that template, then sync it to the worker workspaces.
 
+中文说明：每个 logical agent 维护一份标准模板 workspace。不要直接改 worker workspace，worker 是运行副本，应该由模板同步生成。
+
 The sync script mirrors normal customer-service files and preserves runtime state. It skips:
 
 - `.git`
@@ -207,14 +230,21 @@ node scripts/sync-worker-workspaces.js main --config agent-pool.config.local.jso
 - Pool full: requests wait up to `QUEUE_TIMEOUT_SECONDS`, then return HTTP 429 with `error: "queue_timeout"`.
 - Soft stickiness: a conversation reuses its previous worker while available and inside `STICKY_TTL_SECONDS`; if that worker is busy, another free worker may be used.
 
+中文说明：判断 5 并发是否真的生效时，一定要用 5 个不同的 `conversationId` 测试；同一个 `conversationId` 会被设计性串行。
+
 ## Health And Metrics
 
 ```bash
 curl http://127.0.0.1:9070/health
+agents-pool pool --url http://127.0.0.1:9070
+curl -H "Authorization: Bearer $AGENT_BRIDGE_TOKEN" http://127.0.0.1:9070/admin/pool
 curl http://127.0.0.1:9070/metrics
 ```
 
 `/health` exposes pool and queue counts. `/metrics` returns simple text counters that can be scraped or checked by PM2/systemd probes.
+`/admin/pool` exposes per-worker runtime state for operators: busy flag, current session binding, sticky bound sessions, pool waiters, conversation queue depth, idle duration, and the most recent worker error. It requires the same bearer token as chat requests when `AGENT_BRIDGE_TOKEN` is configured. `agents-pool pool` is the CLI wrapper for the same endpoint and reads `AGENT_BRIDGE_TOKEN` from the environment or local `.env` by default.
+
+中文说明：日常排查优先用 `agents-pool pool` 或直接看 `/admin/pool`。它能直接回答“哪个 worker 忙、绑了哪个 session、是否有积压、最近一次错误是什么”。
 
 ## Integration Notes
 

@@ -233,6 +233,7 @@ async function runCli(argv = process.argv.slice(2), io = {}) {
     rootDir,
     homeDir,
     configPath,
+    fetch: io.fetch || globalThis.fetch,
     stdin: io.stdin || process.stdin,
     stdout: io.stdout || process.stdout,
     stderr: io.stderr || process.stderr,
@@ -243,6 +244,9 @@ async function runCli(argv = process.argv.slice(2), io = {}) {
   }
   if (command === "status") {
     return commandStatus(context);
+  }
+  if (command === "pool" || command === "live" || command === "admin-pool") {
+    return commandPool(context);
   }
   if (command === "sync") {
     return commandSync(context);
@@ -291,6 +295,29 @@ async function commandStatus(context) {
     }
     writeLine(context.stdout, `  workers: ${workers.join(", ")}`);
   }
+  return 0;
+}
+
+async function commandPool(context) {
+  if (typeof context.fetch !== "function") {
+    throw new Error("The pool command requires Node.js fetch support. Use Node.js 20 or newer.");
+  }
+  const env = readDotEnvFile(path.join(context.rootDir, ".env"));
+  const baseUrl = buildBridgeBaseUrl(context.args, env);
+  const token = resolveBridgeToken(context.args, env);
+  const status = await fetchPoolAdminStatus({
+    baseUrl,
+    token,
+    fetch: context.fetch,
+  });
+  if (context.args.json) {
+    writeLine(context.stdout, JSON.stringify(status, null, 2));
+    return 0;
+  }
+  printPoolAdminStatus(status, {
+    baseUrl,
+    stdout: context.stdout,
+  });
   return 0;
 }
 
@@ -657,6 +684,7 @@ function printHelp(stdout) {
     "  agents-pool setup [--dry-run] [--yes]",
     "  agents-pool scan [--json]",
     "  agents-pool status [--config agent-pool.config.json]",
+    "  agents-pool pool [--url http://127.0.0.1:9070] [--token TOKEN] [--json]",
     "  agents-pool sync <logicalAgent> [--source-workspace PATH] [--dry-run]",
     "  agents-pool doctor",
     "",
@@ -667,7 +695,137 @@ function printHelp(stdout) {
     "  --worker-workspace-root /root/.openclaw/workers/workspace",
     "  --worker-agent-dir-root /root/.openclaw/workers/agents",
     "  --service sudan-agent-pool-bridge",
+    "",
+    "Runtime pool options:",
+    "  --url http://127.0.0.1:9070",
+    "  --token TOKEN",
+    "  --token-env AGENT_BRIDGE_TOKEN",
   ].join("\n"));
+}
+
+async function fetchPoolAdminStatus(options) {
+  const url = buildAdminPoolUrl(options.baseUrl);
+  const headers = {};
+  if (options.token) {
+    headers.Authorization = `Bearer ${options.token}`;
+  }
+  const response = await options.fetch(url, { headers });
+  if (!response.ok) {
+    const body = typeof response.text === "function" ? await response.text() : "";
+    throw new Error(`GET ${url} failed with HTTP ${response.status}${body ? `: ${body}` : ""}`);
+  }
+  return response.json();
+}
+
+function buildAdminPoolUrl(baseUrl) {
+  return `${String(baseUrl || "http://127.0.0.1:9070").replace(/\/+$/, "")}/admin/pool`;
+}
+
+function buildBridgeBaseUrl(args, env) {
+  if (args.url) {
+    return args.url;
+  }
+  if (process.env.AGENT_POOL_URL) {
+    return process.env.AGENT_POOL_URL;
+  }
+  if (env.AGENT_POOL_URL) {
+    return env.AGENT_POOL_URL;
+  }
+  const port = args.port || process.env.PORT || env.PORT || 9070;
+  return `http://127.0.0.1:${port}`;
+}
+
+function resolveBridgeToken(args, env) {
+  if (args.token) {
+    return args.token;
+  }
+  const tokenEnvName = args["token-env"] || "AGENT_BRIDGE_TOKEN";
+  return process.env[tokenEnvName] || env[tokenEnvName] || env.AGENT_BRIDGE_TOKEN || "";
+}
+
+function printPoolAdminStatus(status, options) {
+  const pool = status.pool || {};
+  const queues = status.queues || {};
+  const workers = Array.isArray(pool.workers) ? pool.workers : [];
+  const waiters = Array.isArray(pool.waiters) ? pool.waiters : [];
+  writeLine(options.stdout, `Live pool: ${buildAdminPoolUrl(options.baseUrl)}`);
+  writeLine(options.stdout, `generatedAt=${status.generatedAt || ""} default=${status.defaultAgentId || status.default_agent_id || ""}`);
+  writeLine(
+    options.stdout,
+    `workers=${pool.workerCount || workers.length} busy=${pool.busyWorkers || 0} queued=${pool.queueDepth || waiters.length} conversationQueues=${queues.conversationQueues || 0}`
+  );
+  if (!workers.length) {
+    writeLine(options.stdout, "workers: (none)");
+    return;
+  }
+  writeLine(options.stdout, "");
+  writeLine(options.stdout, "Workers:");
+  for (const worker of workers) {
+    const state = worker.busy ? "BUSY" : "idle";
+    const session = worker.currentSession || "-";
+    const conversation = worker.currentConversationId || "-";
+    const logicalAgent = worker.logicalAgentId || "-";
+    const duration = worker.busy ? formatDurationMs(worker.busyForMs) : formatDurationMs(worker.idleForMs);
+    const durationLabel = worker.busy ? "busyFor" : "idleFor";
+    writeLine(
+      options.stdout,
+      `  ${state.padEnd(4)} ${worker.workerAgentId} logical=${logicalAgent} conversation=${conversation} session=${session} ${durationLabel}=${duration} bound=${(worker.boundSessions || []).length}`
+    );
+    if (worker.lastError) {
+      writeLine(options.stdout, `       lastError=${worker.lastError.code || ""} ${worker.lastError.message || ""}`.trimEnd());
+    }
+  }
+  if (waiters.length) {
+    writeLine(options.stdout, "");
+    writeLine(options.stdout, "Waiters:");
+    for (const waiter of waiters) {
+      writeLine(
+        options.stdout,
+        `  ${waiter.sessionId || "-"} logical=${waiter.logicalAgentId || "-"} conversation=${waiter.conversationId || "-"} queuedFor=${formatDurationMs(waiter.queuedForMs)}`
+      );
+    }
+  }
+}
+
+function formatDurationMs(value) {
+  const ms = Math.max(0, Number(value || 0));
+  if (ms < 1000) {
+    return `${ms}ms`;
+  }
+  const seconds = ms / 1000;
+  if (seconds < 60) {
+    return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
+  }
+  const minutes = seconds / 60;
+  if (minutes < 60) {
+    return `${minutes.toFixed(minutes < 10 ? 1 : 0)}m`;
+  }
+  const hours = minutes / 60;
+  return `${hours.toFixed(hours < 10 ? 1 : 0)}h`;
+}
+
+function readDotEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return {};
+  }
+  const values = {};
+  for (const line of fs.readFileSync(filePath, "utf8").split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+    const index = trimmed.indexOf("=");
+    if (index === -1) {
+      continue;
+    }
+    const key = trimmed.slice(0, index).trim();
+    let value = trimmed.slice(index + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    values[key] = value;
+  }
+  return values;
 }
 
 function readJsonIfExists(filePath, fallback) {
@@ -818,6 +976,7 @@ module.exports = {
   parseOpenClawAgentList,
   parseArgs,
   parseSelection,
+  fetchPoolAdminStatus,
   runCli,
   scanEnvironment,
 };

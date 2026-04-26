@@ -126,6 +126,61 @@ test("HTTP server returns 429 when the pool queue times out", async () => {
   }
 });
 
+test("HTTP server exposes authenticated pool admin status", async () => {
+  const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  let releaseRunner;
+  const server = createApp({
+    token: "secret",
+    defaultAgentId: "main",
+    pool: new AgentPool({
+      defaultAgentId: "main",
+      queueTimeoutMs: 200,
+      stickyTtlMs: 1000,
+      agents: { main: ["main-1"] },
+    }),
+    queues: new ConversationQueueManager(),
+    sessionStore: new SessionStore({ dir: sessionDir, historyLimit: 20 }),
+    runner: async () =>
+      new Promise((resolve) => {
+        releaseRunner = () => resolve({ reply: "done" });
+      }),
+  });
+
+  const port = await listen(server);
+  try {
+    const unauthorized = await fetch(`http://127.0.0.1:${port}/admin/pool`);
+    assert.equal(unauthorized.status, 401);
+
+    const first = fetch(`http://127.0.0.1:${port}/api/agents/main/chat`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer secret",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ conversationId: "customer-admin", content: "first" }),
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    const response = await fetch(`http://127.0.0.1:${port}/admin/pool`, {
+      headers: { Authorization: "Bearer secret" },
+    });
+    assert.equal(response.status, 200);
+
+    const payload = await response.json();
+    assert.equal(payload.ok, true);
+    assert.equal(payload.pool.busyWorkers, 1);
+    assert.equal(payload.pool.workers[0].busy, true);
+    assert.equal(payload.pool.workers[0].currentSession, "bridge_main_customer-admin");
+    assert.equal(payload.queues.activeTurns, 1);
+
+    releaseRunner();
+    assert.equal(await (await first).json().then((body) => body.reply), "done");
+  } finally {
+    await close(server);
+  }
+});
+
 test("HTTP server prefers bridge-owned history over caller-provided messageList roles", async () => {
   const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
   const runnerCalls = [];
