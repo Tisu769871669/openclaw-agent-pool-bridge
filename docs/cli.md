@@ -53,6 +53,10 @@ agents-pool help
 
 `setup` asks which discovered workspaces should become logical agents, how many workers each pool should use, where templates and worker workspaces should live, and whether to create workers, sync files, and restart a service.
 
+When `agent-pool.config.json` already contains the selected logical agent, `setup` reuses that agent's existing `templateWorkspace`, `workerWorkspaceRoot`, and worker names by default. Passing `--count` regenerates the worker list while keeping the inferred existing worker prefix, and `--worker-prefix` overrides that prefix explicitly.
+
+中文说明：如果当前服务器已经配置过 `main -> sudan-main-1..5`，再次执行 `agents-pool setup --dry-run` 会默认沿用 `sudan-main-1..5`，不会悄悄改成 `main-1..5`。只有你明确传 `--count` 或 `--worker-prefix`，才会重新规划 worker 名。
+
 `sync` refreshes a logical agent pool:
 
 ```bash
@@ -97,6 +101,7 @@ agents-pool pool --url http://127.0.0.1:9070 --json
 | `--yes` | 尽量跳过交互确认，适合自动化脚本。 |
 | `--agents main,agent1` | 指定要配置的 logical agents。 |
 | `--count 5` | 每个 logical agent 创建多少个 worker。 |
+| `--worker-prefix sudan-main` | 显式指定 worker 命名前缀；例如生成 `sudan-main-1..5`。 |
 | `--template-root PATH` | logical agent 模板 workspace 的根目录。 |
 | `--worker-workspace-root PATH` | worker workspace 根目录。 |
 | `--worker-agent-dir-root PATH` | worker agent 配置目录根目录。 |

@@ -107,6 +107,10 @@ agents-pool doctor
 
 中文说明：`agents-pool help` 会列出所有命令和说明；`gents-pool` 也会作为同一个命令的容错别名安装。
 
+When `agent-pool.config.json` already has a logical agent, `agents-pool setup` reuses its existing template path and worker names by default. For example, an existing `main -> sudan-main-1..5` pool stays on `sudan-main-1..5` during `setup --dry-run`; pass `--count` or `--worker-prefix` only when you intentionally want to replan worker names.
+
+中文说明：已经上线的服务器上，`setup` 默认保护旧配置。你截图里这种情况可以先按回车继续看 dry-run 计划，重点确认输出里的 workers 仍然是 `sudan-main-1..5`。
+
 Typical server setup:
 
 ```bash

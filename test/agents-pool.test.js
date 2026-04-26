@@ -76,6 +76,51 @@ test("buildSetupPlan maps selected workspaces into pool operations", () => {
   assert.equal(plan.agents[1].logicalAgentId, "agent1");
 });
 
+test("buildSetupPlan reuses existing worker names and template paths by default", () => {
+  const plan = buildSetupPlan({
+    selectedWorkspaces: [{ logicalAgentId: "main", workspace: "/root/.openclaw/workspace" }],
+    workerCount: 5,
+    templateRoot: "/root/openclaw-agent-templates",
+    workerWorkspaceRoot: "/root/.openclaw/workers/workspace",
+    workerAgentDirRoot: "/root/.openclaw/workers/agents",
+    existingConfig: {
+      agents: {
+        main: {
+          templateWorkspace: "/root/openclaw-agent-templates/sudan-main",
+          workerWorkspaceRoot: "/root/.openclaw/workers/workspace",
+          workers: ["sudan-main-1", "sudan-main-2"],
+        },
+      },
+    },
+  });
+
+  assert.equal(plan.agents[0].templateWorkspace, "/root/openclaw-agent-templates/sudan-main");
+  assert.deepEqual(plan.agents[0].workers, ["sudan-main-1", "sudan-main-2"]);
+  assert.equal(plan.agents[0].workerWorkspaces["sudan-main-1"], "/root/.openclaw/workers/workspace/sudan-main-1");
+});
+
+test("buildSetupPlan expands existing worker prefix when count is explicit", () => {
+  const plan = buildSetupPlan({
+    selectedWorkspaces: [{ logicalAgentId: "main", workspace: "/root/.openclaw/workspace" }],
+    workerCount: 3,
+    workerCountExplicit: true,
+    templateRoot: "/root/openclaw-agent-templates",
+    workerWorkspaceRoot: "/root/.openclaw/workers/workspace",
+    workerAgentDirRoot: "/root/.openclaw/workers/agents",
+    existingConfig: {
+      agents: {
+        main: {
+          templateWorkspace: "/root/openclaw-agent-templates/sudan-main",
+          workerWorkspaceRoot: "/root/.openclaw/workers/workspace",
+          workers: ["sudan-main-1", "sudan-main-2"],
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(plan.agents[0].workers, ["sudan-main-1", "sudan-main-2", "sudan-main-3"]);
+});
+
 test("mergeAgentConfig preserves existing agents and updates selected definitions", () => {
   const existing = {
     defaultAgentId: "main",

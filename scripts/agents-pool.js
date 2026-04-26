@@ -178,15 +178,36 @@ function buildSetupPlan(options) {
   const workerAgentDirRoot = requiredValue(options.workerAgentDirRoot, "workerAgentDirRoot is required");
   const agents = options.selectedWorkspaces.map((workspace) => {
     const logicalAgentId = sanitizeAgentId(workspace.logicalAgentId);
+    const existingDefinition = existingAgentDefinition(options.existingConfig, logicalAgentId);
+    const shouldReuseExistingWorkers =
+      !options.workerCountExplicit &&
+      !options.workerPrefix &&
+      !workspace.workerPrefix &&
+      existingDefinition.workers.length > 0;
+    const effectiveWorkerPrefix = workspace.workerPrefix ||
+      options.workerPrefix ||
+      inferWorkerPrefix(existingDefinition.workers, logicalAgentId);
+    const effectiveTemplateRoot = options.templateRootExplicit
+      ? templateRoot
+      : path.dirname(existingDefinition.templateWorkspace || joinPath(templateRoot, logicalAgentId));
+    const effectiveWorkerWorkspaceRoot = options.workerWorkspaceRootExplicit
+      ? workerWorkspaceRoot
+      : existingDefinition.workerWorkspaceRoot || workerWorkspaceRoot;
     const definition = buildAgentDefinition({
       logicalAgentId,
-      workerPrefix: workspace.workerPrefix || logicalAgentId,
+      workerPrefix: effectiveWorkerPrefix,
       workerCount: workspace.workerCount || workerCount,
-      templateRoot,
-      workerWorkspaceRoot,
+      templateRoot: effectiveTemplateRoot,
+      workerWorkspaceRoot: effectiveWorkerWorkspaceRoot,
     });
+    if (existingDefinition.templateWorkspace && !options.templateRootExplicit) {
+      definition.templateWorkspace = existingDefinition.templateWorkspace;
+    }
+    if (shouldReuseExistingWorkers) {
+      definition.workers = existingDefinition.workers;
+    }
     const workerWorkspaces = Object.fromEntries(
-      definition.workers.map((worker) => [worker, joinPath(workerWorkspaceRoot, worker)])
+      definition.workers.map((worker) => [worker, joinPath(definition.workerWorkspaceRoot, worker)])
     );
     const workerAgentDirs = Object.fromEntries(
       definition.workers.map((worker) => [worker, joinPath(workerAgentDirRoot, worker)])
@@ -327,9 +348,15 @@ async function commandSetup(context) {
     homeDir: context.homeDir,
     openclawBin: args.openclaw || "openclaw",
   });
-  const answers = await collectSetupAnswers(context, scan);
-  const plan = buildSetupPlan(answers);
   const existingConfig = readJsonIfExists(context.configPath, {});
+  const answers = await collectSetupAnswers(context, scan);
+  const plan = buildSetupPlan({
+    ...answers,
+    existingConfig,
+    workerPrefix: args["worker-prefix"],
+    templateRootExplicit: answers.templateRootExplicit,
+    workerWorkspaceRootExplicit: answers.workerWorkspaceRootExplicit,
+  });
   const nextConfig = mergeAgentConfig(existingConfig, plan);
 
   printPlan(plan, context.stdout);
@@ -425,14 +452,17 @@ async function collectSetupAnswers(context, scan) {
   try {
     printScan(scan, context.stdout);
     const selectedWorkspaces = await chooseWorkspaces(context, rl, scan.workspaces);
-    const workerCount = Number(args.count || (rl ? await ask(rl, "Worker count per logical agent [5]: ") : 5) || 5);
-    const templateRoot = args["template-root"] || await askDefault(
+    const workerCountAnswer = args.count || (rl ? await ask(rl, "Worker count per logical agent [5]: ") : "");
+    const workerCount = Number(workerCountAnswer || 5);
+    const templateRootAnswer = await askOption(
       rl,
+      args["template-root"],
       "Template workspace root",
       joinPath(context.homeDir, "openclaw-agent-templates")
     );
-    const workerWorkspaceRoot = args["worker-workspace-root"] || await askDefault(
+    const workerWorkspaceRootAnswer = await askOption(
       rl,
+      args["worker-workspace-root"],
       "Worker workspace root",
       path.join(context.homeDir, ".openclaw", "workers", "workspace")
     );
@@ -452,8 +482,11 @@ async function collectSetupAnswers(context, scan) {
     return {
       selectedWorkspaces,
       workerCount,
-      templateRoot,
-      workerWorkspaceRoot,
+      workerCountExplicit: Boolean(workerCountAnswer),
+      templateRoot: templateRootAnswer.value,
+      templateRootExplicit: templateRootAnswer.explicit,
+      workerWorkspaceRoot: workerWorkspaceRootAnswer.value,
+      workerWorkspaceRootExplicit: workerWorkspaceRootAnswer.explicit,
       workerAgentDirRoot,
       refreshTemplates,
       createWorkers,
@@ -713,6 +746,7 @@ function printHelp(stdout) {
     "Setup options:",
     "  --agents main,agent1",
     "  --count 5",
+    "  --worker-prefix sudan-main",
     "  --template-root /root/openclaw-agent-templates",
     "  --worker-workspace-root /root/.openclaw/workers/workspace",
     "  --worker-agent-dir-root /root/.openclaw/workers/agents",
@@ -737,6 +771,37 @@ async function fetchPoolAdminStatus(options) {
     throw new Error(`GET ${url} failed with HTTP ${response.status}${body ? `: ${body}` : ""}`);
   }
   return response.json();
+}
+
+function existingAgentDefinition(existingConfig, logicalAgentId) {
+  const raw = existingConfig?.agents?.[logicalAgentId];
+  if (Array.isArray(raw)) {
+    return {
+      templateWorkspace: "",
+      workerWorkspaceRoot: "",
+      workers: raw,
+    };
+  }
+  if (raw && typeof raw === "object") {
+    return {
+      templateWorkspace: raw.templateWorkspace || "",
+      workerWorkspaceRoot: raw.workerWorkspaceRoot || "",
+      workers: Array.isArray(raw.workers) ? raw.workers : [],
+    };
+  }
+  return {
+    templateWorkspace: "",
+    workerWorkspaceRoot: "",
+    workers: [],
+  };
+}
+
+function inferWorkerPrefix(workers, fallback) {
+  const prefixes = workers
+    .map((worker) => String(worker).match(/^(.*)-\d+$/)?.[1])
+    .filter(Boolean);
+  const uniquePrefixes = [...new Set(prefixes)];
+  return uniquePrefixes.length === 1 ? uniquePrefixes[0] : fallback;
 }
 
 function buildAdminPoolUrl(baseUrl) {
@@ -946,6 +1011,20 @@ async function ask(rl, question) {
 async function askDefault(rl, label, defaultValue) {
   const answer = await ask(rl, `${label} [${defaultValue}]: `);
   return answer || defaultValue;
+}
+
+async function askOption(rl, providedValue, label, defaultValue) {
+  if (providedValue) {
+    return {
+      value: providedValue,
+      explicit: true,
+    };
+  }
+  const answer = await ask(rl, `${label} [${defaultValue}]: `);
+  return {
+    value: answer || defaultValue,
+    explicit: Boolean(answer),
+  };
 }
 
 async function askConfirm(context, question, defaultValue, rlArg) {
