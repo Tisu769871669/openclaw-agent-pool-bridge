@@ -266,11 +266,44 @@ With debounce enabled, requests with the same `logicalAgent + conversationId` th
 
 The bridge core keeps customer-specific behavior out of the pool. Prompt shaping, FAQ lookup, and RAG retrieval should be configured as separate adapters around the generic request flow, not hard-coded for one customer service persona.
 
-Planned configuration shape:
+Prompt Adapter is available now. The default is `none`, which preserves the existing bridge prompt exactly. Set `PROMPT_ADAPTER=template` to render a Markdown prompt template before each OpenClaw worker run:
 
 ```env
 PROMPT_ADAPTER=none
 PROMPT_TEMPLATE_FILE=
+```
+
+Template variables:
+
+| Variable | Value |
+| --- | --- |
+| `{{logical_agent}}` / `{{agent_id}}` | Logical agent ID such as `main`. |
+| `{{conversation_id}}` | Conversation ID from the caller. |
+| `{{user_id}}` | User ID from the caller, if present. |
+| `{{history}}` | Bridge-owned recent history formatted as numbered `user` / `assistant` lines. |
+| `{{message}}` | Current user message after debounce, if enabled. |
+| `{{retrieval_context}}` | Reserved for FAQ/RAG retrieval context; currently empty. |
+
+Example:
+
+```md
+你是 {{logical_agent}} 客服。
+
+最近对话：
+{{history}}
+
+可参考资料：
+{{retrieval_context}}
+
+当前用户消息：
+{{message}}
+```
+
+See `examples/prompt-template.zh-CN.md` for a generic Chinese customer-service template.
+
+FAQ and RAG retrieval are planned as the next adapter layer:
+
+```env
 RETRIEVAL_ENABLED=false
 RETRIEVAL_PROVIDER=faq
 FAQ_FILE=
@@ -279,7 +312,7 @@ RETRIEVAL_TOP_K=3
 RETRIEVAL_MIN_SCORE=0.65
 ```
 
-中文说明：苏丹式 prompt、FAQ、RAG 都可以迁移，但应该做成每个客服可控的 adapter。核心 pool 只负责协议、防抖、队列、worker pool、session history 和 runner。
+中文说明：苏丹式 prompt 现在可以先通过模板 adapter 迁移，不需要写死进开源核心。FAQ/RAG 后续会作为第二层 retrieval adapter，把命中的资料填入 `{{retrieval_context}}`。核心 pool 仍然只负责协议、防抖、队列、worker pool、session history 和 runner。
 
 ## Health And Metrics
 
@@ -292,7 +325,7 @@ curl http://127.0.0.1:9070/metrics
 
 `/health` exposes pool and queue counts. `/metrics` returns simple text counters that can be scraped or checked by PM2/systemd probes.
 `/admin/pool` exposes per-worker runtime state for operators: busy flag, current session binding, sticky bound sessions, pool waiters, conversation queue depth, idle duration, and the most recent worker error. It requires the same bearer token as chat requests when `AGENT_BRIDGE_TOKEN` is configured. `agents-pool pool` is the CLI wrapper for the same endpoint and reads `AGENT_BRIDGE_TOKEN` from the environment or local `.env` by default.
-`/health` and `/admin/pool` also expose debounce state: whether it is enabled, pending batches, and pending messages.
+`/health` and `/admin/pool` also expose debounce state and prompt adapter state: whether debounce is enabled, pending batches, pending messages, and which prompt adapter is active.
 
 中文说明：日常排查优先用 `agents-pool pool` 或直接看 `/admin/pool`。它能直接回答“哪个 worker 忙、绑了哪个 session、是否有积压、最近一次错误是什么”。
 

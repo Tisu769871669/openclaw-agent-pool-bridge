@@ -19,6 +19,7 @@ function createApp(options = {}) {
   const pool = options.pool;
   const queues = options.queues;
   const debounce = options.debounce;
+  const promptAdapter = options.promptAdapter;
   const sessionStore = options.sessionStore;
   const runner = options.runner;
 
@@ -38,6 +39,7 @@ function createApp(options = {}) {
           pool: pool.snapshot(),
           queues: queues.snapshot(),
           debounce: debounce?.snapshot?.() || null,
+          prompt: promptAdapter?.snapshot?.() || { adapter: "none" },
         });
       }
 
@@ -49,7 +51,7 @@ function createApp(options = {}) {
         if (!authenticate(req, token)) {
           throw createApiError(401, "unauthorized", "missing or invalid bearer token");
         }
-        return sendJson(res, 200, renderPoolAdminStatus({ defaultAgentId, pool, queues, debounce }));
+        return sendJson(res, 200, renderPoolAdminStatus({ defaultAgentId, pool, queues, debounce, promptAdapter }));
       }
 
       if (!authenticate(req, token)) {
@@ -70,6 +72,7 @@ function createApp(options = {}) {
             normalized: debouncedNormalized,
             traceId,
             pool,
+            promptAdapter,
             sessionStore,
             runner,
           })
@@ -93,7 +96,7 @@ function createApp(options = {}) {
   });
 }
 
-async function handleChatTurn({ logicalAgentId, normalized, traceId, pool, sessionStore, runner }) {
+async function handleChatTurn({ logicalAgentId, normalized, traceId, pool, promptAdapter, sessionStore, runner }) {
   return pool.withWorker(logicalAgentId, normalized.conversationId, async (lease) => {
     const requestContext = Array.isArray(normalized.historyOverride)
       ? normalized.historyOverride
@@ -102,10 +105,17 @@ async function handleChatTurn({ logicalAgentId, normalized, traceId, pool, sessi
     const history = storedContext.length ? storedContext : requestContext;
     const sessionId = buildSessionId(logicalAgentId, normalized.conversationId);
     const runSessionId = buildRunSessionId(logicalAgentId, normalized.conversationId, traceId);
-    const prompt = buildPrompt({
+    const promptInput = {
+      logicalAgentId,
+      conversationId: normalized.conversationId,
+      userId: normalized.userId,
       message: normalized.message,
       history,
-    });
+      retrievalContext: "",
+    };
+    const prompt = promptAdapter?.buildPrompt
+      ? promptAdapter.buildPrompt(promptInput)
+      : buildPrompt(promptInput);
 
     const result = await runner({
       logicalAgentId,
@@ -219,7 +229,7 @@ function renderMetrics({ pool, queues, debounce }) {
   ].join("\n");
 }
 
-function renderPoolAdminStatus({ defaultAgentId, pool, queues, debounce }) {
+function renderPoolAdminStatus({ defaultAgentId, pool, queues, debounce, promptAdapter }) {
   return {
     ok: true,
     service: "openclaw-agent-pool-bridge",
@@ -228,6 +238,7 @@ function renderPoolAdminStatus({ defaultAgentId, pool, queues, debounce }) {
     pool: pool.snapshot(),
     queues: queues.snapshot(),
     debounce: debounce?.snapshot?.() || null,
+    prompt: promptAdapter?.snapshot?.() || { adapter: "none" },
   };
 }
 

@@ -834,6 +834,7 @@ function printPoolAdminStatus(status, options) {
   const pool = status.pool || {};
   const queues = status.queues || {};
   const debounce = status.debounce || {};
+  const prompt = status.prompt || {};
   const workers = Array.isArray(pool.workers) ? pool.workers : [];
   const waiters = Array.isArray(pool.waiters) ? pool.waiters : [];
   writeLine(options.stdout, `Live pool: ${buildAdminPoolUrl(options.baseUrl)}`);
@@ -846,6 +847,12 @@ function printPoolAdminStatus(status, options) {
     writeLine(
       options.stdout,
       `debounce=${debounce.enabled ? "on" : "off"} incompleteExtraWait=${debounce.incompleteMessageExtraWaitEnabled ? "on" : "off"} pendingBatches=${debounce.pendingBatches || 0} pendingMessages=${debounce.pendingMessages || 0}`
+    );
+  }
+  if (Object.keys(prompt).length) {
+    writeLine(
+      options.stdout,
+      `promptAdapter=${prompt.adapter || "none"}${prompt.templateFile ? ` template=${prompt.templateFile}` : ""}`
     );
   }
   if (!workers.length) {

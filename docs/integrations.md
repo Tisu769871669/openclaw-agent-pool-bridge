@@ -118,11 +118,43 @@ The optional incomplete-message extra wait policy delays a little longer when th
 
 Customer-specific prompt shaping, FAQ, and RAG should stay out of the pool core. Use adapters around the generic bridge flow so each customer service agent can opt in and configure its own behavior.
 
-Future adapter-style configuration:
+Prompt Adapter is the first adapter layer. It is off by default. Use `template` when you want a customer-service-specific Markdown prompt without changing pool code:
 
 ```env
 PROMPT_ADAPTER=none
 PROMPT_TEMPLATE_FILE=
+```
+
+Template variables:
+
+- `{{logical_agent}}` / `{{agent_id}}`
+- `{{conversation_id}}`
+- `{{user_id}}`
+- `{{history}}`
+- `{{message}}`
+- `{{retrieval_context}}`
+
+Example:
+
+```md
+你是 {{logical_agent}} 的客服。
+
+最近对话：
+{{history}}
+
+业务资料：
+{{retrieval_context}}
+
+当前用户消息：
+{{message}}
+```
+
+中文说明：这一步先解决“不同客服怎么用自己的 prompt”。每个服务器或每个 logical agent 可以维护自己的模板文件，然后通过 `.env` 指向它。模板文件建议放在私有运维目录或业务仓库里，不要把真实内部 SOP、价格策略、客户资料直接提交到开源仓库。
+仓库里的 `examples/prompt-template.zh-CN.md` 只是通用示例，可以复制后按具体客服改写。
+
+FAQ/RAG retrieval is planned as the next adapter layer:
+
+```env
 RETRIEVAL_ENABLED=false
 RETRIEVAL_PROVIDER=faq
 FAQ_FILE=
@@ -131,7 +163,7 @@ RETRIEVAL_TOP_K=3
 RETRIEVAL_MIN_SCORE=0.65
 ```
 
-中文说明：苏丹 prompt 可以迁，但不要写死进开源核心。更好的方式是让每个客服在 env 或配置里选择 prompt adapter、FAQ/RAG provider 和参数。
+中文说明：苏丹 prompt 可以迁，但不要写死进开源核心。更好的方式是让每个客服在 env 或配置里选择 prompt adapter、FAQ/RAG provider 和参数；FAQ/RAG 命中内容后续会填进 `{{retrieval_context}}`。
 
 ## Publishing Checklist / 发布前检查
 

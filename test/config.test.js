@@ -80,3 +80,17 @@ test("loadConfig supports legacy max debounce env alias and extra wait policy al
   assert.equal(config.incompleteMessageExtraWaitEnabled, true);
   assert.equal(config.incompleteMessageExtraWaitMs, 2500);
 });
+
+test("loadConfig supports prompt adapter environment options", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const config = loadConfig(
+    {
+      PROMPT_ADAPTER: "template",
+      PROMPT_TEMPLATE_FILE: "prompts/main.md",
+    },
+    dir
+  );
+
+  assert.equal(config.promptAdapter, "template");
+  assert.equal(config.promptTemplateFile, path.join(dir, "prompts", "main.md"));
+});

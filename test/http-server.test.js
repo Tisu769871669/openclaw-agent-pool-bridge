@@ -292,6 +292,65 @@ test("HTTP server ignores roleless caller-provided history on cold start", async
   }
 });
 
+test("HTTP server sends prompt adapter output to the runner", async () => {
+  const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const runnerCalls = [];
+  const promptAdapterCalls = [];
+  const server = createApp({
+    token: "secret",
+    defaultAgentId: "main",
+    pool: new AgentPool({
+      defaultAgentId: "main",
+      queueTimeoutMs: 200,
+      stickyTtlMs: 1000,
+      agents: { main: ["main-1"] },
+    }),
+    queues: new ConversationQueueManager(),
+    sessionStore: new SessionStore({ dir: sessionDir, historyLimit: 20 }),
+    promptAdapter: {
+      snapshot: () => ({ adapter: "test" }),
+      buildPrompt: (input) => {
+        promptAdapterCalls.push(input);
+        return `adapter prompt for ${input.logicalAgentId}/${input.conversationId}: ${input.message}`;
+      },
+    },
+    runner: async (input) => {
+      runnerCalls.push(input);
+      return { reply: "客服回复" };
+    },
+  });
+
+  const port = await listen(server);
+  try {
+    await fetch(`http://127.0.0.1:${port}/api/agents/main/chat`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer secret",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        conversationId: "customer-template",
+        userId: "user-template",
+        content: "请介绍一下",
+      }),
+    });
+
+    assert.equal(promptAdapterCalls.length, 1);
+    assert.equal(promptAdapterCalls[0].logicalAgentId, "main");
+    assert.equal(promptAdapterCalls[0].conversationId, "customer-template");
+    assert.equal(promptAdapterCalls[0].userId, "user-template");
+    assert.equal(promptAdapterCalls[0].message, "请介绍一下");
+    assert.equal(runnerCalls[0].prompt, "adapter prompt for main/customer-template: 请介绍一下");
+
+    const admin = await fetch(`http://127.0.0.1:${port}/admin/pool`, {
+      headers: { Authorization: "Bearer secret" },
+    });
+    assert.deepEqual((await admin.json()).prompt, { adapter: "test" });
+  } finally {
+    await close(server);
+  }
+});
+
 test("HTTP server debounces same-conversation bursts into one runner call", async () => {
   const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
   const runnerCalls = [];

@@ -12,6 +12,7 @@ This bridge keeps the public chat API simple while moving concurrency control in
 | worker agent | 内部真实执行的 OpenClaw agent，例如 `main-1` 到 `main-5`。 |
 | debounce queue | 可选防抖层，短时间合并同一客户连续消息。 |
 | extra wait policy | 可选策略；最后一条像没说完时延长防抖等待。 |
+| prompt adapter | 可选 prompt 适配层，默认保持原 prompt，可用模板为不同客服定制 prompt。 |
 | conversation queue | 按 `logicalAgent + conversationId` 串行同一会话的队列。 |
 | pool wait queue | 所有 worker 都忙时，请求等待空闲 worker 的队列。 |
 | sticky binding | conversation 优先复用上次 worker 的软绑定。 |
@@ -29,6 +30,7 @@ flowchart LR
   B["Existing business bridge"]
   H["HTTP API<br/>/api/agents/chat<br/>/api/agents/:agentId/chat"]
   D["DebounceQueue optional<br/>merge same conversation burst<br/>optional incomplete-message extra wait"]
+  A["PromptAdapter optional<br/>none or template"]
   Q["ConversationQueue<br/>key = logicalAgent + conversationId"]
   P["AgentPool<br/>worker lease + wait queue"]
   S["SessionStore<br/>bridge-owned recent history"]
@@ -44,7 +46,8 @@ flowchart LR
   D -->|"quiet window or max wait reached"| Q
   Q -->|"same conversation stays sequential"| P
   P -->|"lease one free worker"| S
-  S -->|"history + new user message"| R
+  S -->|"history + new user message"| A
+  A -->|"final prompt"| R
   R --> W1
   R --> W2
   R --> W3
@@ -126,6 +129,7 @@ flowchart LR
 | `HttpServer` | Preserves the existing synchronous request and response protocol. |
 | `DebounceQueue` | Optionally merges short same-conversation message bursts into one agent turn. |
 | Extra wait policy | Optionally extends debounce when the last message looks unfinished. |
+| `PromptAdapter` | Optionally renders the final prompt sent to OpenClaw; `none` keeps the default prompt, `template` fills a Markdown template. |
 | `ConversationQueue` | Serializes messages for the same `logicalAgent + conversationId`. |
 | `AgentPool` | Leases one worker per request, tracks busy workers, and returns 429 after queue timeout. |
 | `SessionStore` | Stores recent bridge-owned history so a conversation can move between workers safely. |
@@ -137,6 +141,7 @@ flowchart LR
 - `HttpServer` 保持旧接口兼容，并提供 `/health`、`/metrics`、`/admin/pool`。
 - `DebounceQueue` 可选启用，解决“客户连续发几条，agent 回复多次”的问题。
 - `Extra wait policy` 可选启用，解决“用户明显还没说完，需要多等一下”的问题。
+- `PromptAdapter` 可选启用，解决“不同客服需要不同 prompt，但不能写死进通用 pool”的问题。
 - `ConversationQueue` 解决“同一个客户连续发消息不能乱序”的问题。
 - `AgentPool` 解决“多个客户能否真正并发，以及 worker 全忙时怎么办”的问题。
 - `SessionStore` 解决“conversation 换 worker 后仍能看到最近上下文”的问题。

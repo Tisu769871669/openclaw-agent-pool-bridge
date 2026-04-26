@@ -4,6 +4,7 @@ const { loadConfig, loadDotEnv } = require("./config");
 const { DebounceQueue } = require("./debounce-queue");
 const { createApp } = require("./http-server");
 const { runOpenClawAgent } = require("./openclaw-runner");
+const { createPromptAdapter } = require("./prompt-adapter");
 const { SessionStore } = require("./session-store");
 
 function createServerFromConfig(config) {
@@ -26,6 +27,10 @@ function createServerFromConfig(config) {
     dir: config.sessionStoreDir,
     historyLimit: config.sessionHistoryLimit,
   });
+  const promptAdapter = createPromptAdapter({
+    adapter: config.promptAdapter,
+    templateFile: config.promptTemplateFile,
+  });
   const runner = (input) =>
     runOpenClawAgent({
       openclawBin: config.openclawBin,
@@ -41,6 +46,7 @@ function createServerFromConfig(config) {
     pool,
     queues,
     debounce,
+    promptAdapter,
     sessionStore,
     runner,
   });
@@ -52,6 +58,7 @@ module.exports = {
   DebounceQueue,
   SessionStore,
   createApp,
+  createPromptAdapter,
   createServerFromConfig,
   loadConfig,
   loadDotEnv,

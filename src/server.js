@@ -23,6 +23,10 @@ server.listen(config.port, () => {
         incompleteMessageExtraWaitEnabled: config.incompleteMessageExtraWaitEnabled,
         incompleteMessageExtraWaitMs: config.incompleteMessageExtraWaitMs,
       },
+      prompt: {
+        adapter: config.promptAdapter,
+        templateFile: config.promptTemplateFile,
+      },
     })
   );
 });

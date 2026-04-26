@@ -54,6 +54,10 @@ function loadConfig(env = process.env, baseDir = process.cwd()) {
       cleanText(env.DEBOUNCE_EXTRA_WAIT_POLICY) === "incomplete-message"
     ),
     incompleteMessageExtraWaitMs: Number(env.INCOMPLETE_MESSAGE_EXTRA_WAIT_MS || 0),
+    promptAdapter: cleanText(env.PROMPT_ADAPTER || "none").toLowerCase(),
+    promptTemplateFile: cleanText(env.PROMPT_TEMPLATE_FILE)
+      ? resolvePath(cleanText(env.PROMPT_TEMPLATE_FILE), baseDir)
+      : "",
     sessionStoreDir: resolvePath(env.SESSION_STORE_DIR || ".sessions", baseDir),
     sessionHistoryLimit: Number(env.SESSION_HISTORY_LIMIT || 20),
     agents: normalizedAgentConfig.agents,
