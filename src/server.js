@@ -16,6 +16,11 @@ server.listen(config.port, () => {
       port: config.port,
       defaultAgentId: config.defaultAgentId,
       workers: config.agents,
+      debounce: {
+        enabled: config.debounceEnabled,
+        windowMs: config.debounceWindowMs,
+        maxWaitMs: config.debounceMaxWaitMs,
+      },
     })
   );
 });

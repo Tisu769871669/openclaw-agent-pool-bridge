@@ -48,3 +48,17 @@ test("loadConfig supports template workspace agent definitions", () => {
   });
   assert.equal(config.agentTemplates.legacy, undefined);
 });
+
+test("loadConfig supports debounce environment options", () => {
+  const config = loadConfig({
+    DEBOUNCE_ENABLED: "true",
+    DEBOUNCE_WINDOW_MS: "1500",
+    DEBOUNCE_MAX_WAIT_MS: "5000",
+    DEBOUNCE_MAX_MESSAGES: "12",
+  });
+
+  assert.equal(config.debounceEnabled, true);
+  assert.equal(config.debounceWindowMs, 1500);
+  assert.equal(config.debounceMaxWaitMs, 5000);
+  assert.equal(config.debounceMaxMessages, 12);
+});

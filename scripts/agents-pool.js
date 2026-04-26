@@ -833,6 +833,7 @@ function resolveBridgeToken(args, env) {
 function printPoolAdminStatus(status, options) {
   const pool = status.pool || {};
   const queues = status.queues || {};
+  const debounce = status.debounce || {};
   const workers = Array.isArray(pool.workers) ? pool.workers : [];
   const waiters = Array.isArray(pool.waiters) ? pool.waiters : [];
   writeLine(options.stdout, `Live pool: ${buildAdminPoolUrl(options.baseUrl)}`);
@@ -841,6 +842,12 @@ function printPoolAdminStatus(status, options) {
     options.stdout,
     `workers=${pool.workerCount || workers.length} busy=${pool.busyWorkers || 0} queued=${pool.queueDepth || waiters.length} conversationQueues=${queues.conversationQueues || 0}`
   );
+  if (Object.keys(debounce).length) {
+    writeLine(
+      options.stdout,
+      `debounce=${debounce.enabled ? "on" : "off"} pendingBatches=${debounce.pendingBatches || 0} pendingMessages=${debounce.pendingMessages || 0}`
+    );
+  }
   if (!workers.length) {
     writeLine(options.stdout, "workers: (none)");
     return;

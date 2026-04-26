@@ -18,6 +18,7 @@ function createApp(options = {}) {
   const defaultAgentId = String(options.defaultAgentId || "main").trim();
   const pool = options.pool;
   const queues = options.queues;
+  const debounce = options.debounce;
   const sessionStore = options.sessionStore;
   const runner = options.runner;
 
@@ -36,18 +37,19 @@ function createApp(options = {}) {
           default_agent_id: defaultAgentId,
           pool: pool.snapshot(),
           queues: queues.snapshot(),
+          debounce: debounce?.snapshot?.() || null,
         });
       }
 
       if (route.type === "metrics") {
-        return sendText(res, 200, renderMetrics({ pool, queues }));
+        return sendText(res, 200, renderMetrics({ pool, queues, debounce }));
       }
 
       if (route.type === "adminPool") {
         if (!authenticate(req, token)) {
           throw createApiError(401, "unauthorized", "missing or invalid bearer token");
         }
-        return sendJson(res, 200, renderPoolAdminStatus({ defaultAgentId, pool, queues }));
+        return sendJson(res, 200, renderPoolAdminStatus({ defaultAgentId, pool, queues, debounce }));
       }
 
       if (!authenticate(req, token)) {
@@ -61,16 +63,20 @@ function createApp(options = {}) {
         throw createApiError(400, "invalid_request", validationError);
       }
 
-      const result = await queues.run(route.logicalAgentId, normalized.conversationId, async () =>
-        handleChatTurn({
-          logicalAgentId: route.logicalAgentId,
-          normalized,
-          traceId,
-          pool,
-          sessionStore,
-          runner,
-        })
-      );
+      const runTurn = (debouncedNormalized) =>
+        queues.run(route.logicalAgentId, debouncedNormalized.conversationId, async () =>
+          handleChatTurn({
+            logicalAgentId: route.logicalAgentId,
+            normalized: debouncedNormalized,
+            traceId,
+            pool,
+            sessionStore,
+            runner,
+          })
+        );
+      const result = debounce
+        ? await debounce.run(route.logicalAgentId, normalized.conversationId, normalized, runTurn)
+        : await runTurn(normalized);
 
       sendJson(res, 200, result);
     } catch (error) {
@@ -89,7 +95,9 @@ function createApp(options = {}) {
 
 async function handleChatTurn({ logicalAgentId, normalized, traceId, pool, sessionStore, runner }) {
   return pool.withWorker(logicalAgentId, normalized.conversationId, async (lease) => {
-    const requestContext = removeCurrentMessageFromContext(normalized.messageList, normalized.message);
+    const requestContext = Array.isArray(normalized.historyOverride)
+      ? normalized.historyOverride
+      : removeCurrentMessageFromContext(normalized.messageList, normalized.message);
     const storedContext = sessionStore.load(logicalAgentId, normalized.conversationId);
     const history = storedContext.length ? storedContext : requestContext;
     const sessionId = buildSessionId(logicalAgentId, normalized.conversationId);
@@ -196,19 +204,22 @@ function sendText(res, statusCode, body) {
   res.end(body);
 }
 
-function renderMetrics({ pool, queues }) {
+function renderMetrics({ pool, queues, debounce }) {
   const poolSnapshot = pool.snapshot();
   const queueSnapshot = queues.snapshot();
+  const debounceSnapshot = debounce?.snapshot?.() || {};
   return [
     `openclaw_agent_pool_workers ${poolSnapshot.workerCount}`,
     `openclaw_agent_pool_busy_workers ${poolSnapshot.busyWorkers}`,
     `openclaw_agent_pool_queue_depth ${poolSnapshot.queueDepth}`,
     `openclaw_agent_pool_conversation_queues ${queueSnapshot.conversationQueues}`,
+    `openclaw_agent_pool_debounce_pending_batches ${debounceSnapshot.pendingBatches || 0}`,
+    `openclaw_agent_pool_debounce_pending_messages ${debounceSnapshot.pendingMessages || 0}`,
     "",
   ].join("\n");
 }
 
-function renderPoolAdminStatus({ defaultAgentId, pool, queues }) {
+function renderPoolAdminStatus({ defaultAgentId, pool, queues, debounce }) {
   return {
     ok: true,
     service: "openclaw-agent-pool-bridge",
@@ -216,6 +227,7 @@ function renderPoolAdminStatus({ defaultAgentId, pool, queues }) {
     defaultAgentId,
     pool: pool.snapshot(),
     queues: queues.snapshot(),
+    debounce: debounce?.snapshot?.() || null,
   };
 }
 

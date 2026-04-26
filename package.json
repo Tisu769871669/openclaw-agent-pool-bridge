@@ -14,7 +14,7 @@
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test",
-    "check": "node --check src/server.js && node --check scripts/agents-pool.js && node --check scripts/create-worker-pool.js && node --check scripts/sync-worker-workspaces.js"
+    "check": "node --check src/server.js && node --check src/debounce-queue.js && node --check scripts/agents-pool.js && node --check scripts/create-worker-pool.js && node --check scripts/sync-worker-workspaces.js"
   },
   "keywords": [
     "openclaw",

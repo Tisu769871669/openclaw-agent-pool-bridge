@@ -7,6 +7,7 @@ const path = require("node:path");
 const { createApp } = require("../src/http-server");
 const { AgentPool } = require("../src/agent-pool");
 const { ConversationQueueManager } = require("../src/conversation-queue");
+const { DebounceQueue } = require("../src/debounce-queue");
 const { SessionStore } = require("../src/session-store");
 
 function listen(server) {
@@ -286,6 +287,65 @@ test("HTTP server ignores roleless caller-provided history on cold start", async
     assert.equal(runnerCalls[0].message, "老师您很忙吗");
     assert.deepEqual(runnerCalls[0].history, []);
     assert.doesNotMatch(runnerCalls[0].prompt, /user: 客服旧回复/);
+  } finally {
+    await close(server);
+  }
+});
+
+test("HTTP server debounces same-conversation bursts into one runner call", async () => {
+  const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const runnerCalls = [];
+  const server = createApp({
+    token: "secret",
+    defaultAgentId: "main",
+    pool: new AgentPool({
+      defaultAgentId: "main",
+      queueTimeoutMs: 200,
+      stickyTtlMs: 1000,
+      agents: { main: ["main-1"] },
+    }),
+    queues: new ConversationQueueManager(),
+    debounce: new DebounceQueue({
+      enabled: true,
+      windowMs: 20,
+      maxWaitMs: 100,
+    }),
+    sessionStore: new SessionStore({ dir: sessionDir, historyLimit: 20 }),
+    runner: async (input) => {
+      runnerCalls.push(input);
+      return { reply: `reply for ${input.message}` };
+    },
+  });
+
+  const port = await listen(server);
+  try {
+    const send = (content) => fetch(`http://127.0.0.1:${port}/api/agents/chat`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer secret",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        conversationId: "customer-debounce",
+        userId: "user-1",
+        content,
+      }),
+    }).then((response) => response.json());
+
+    const first = send("第一句");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const second = send("第二句");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const third = send("第三句");
+
+    const payloads = await Promise.all([first, second, third]);
+
+    assert.equal(runnerCalls.length, 1);
+    assert.match(runnerCalls[0].message, /第一句/);
+    assert.match(runnerCalls[0].message, /第二句/);
+    assert.match(runnerCalls[0].message, /第三句/);
+    assert.equal(payloads[0].reply, payloads[1].reply);
+    assert.equal(payloads[1].reply, payloads[2].reply);
   } finally {
     await close(server);
   }

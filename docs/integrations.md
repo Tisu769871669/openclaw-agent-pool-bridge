@@ -36,6 +36,9 @@ DEFAULT_AGENT_ID=main
 AGENT_POOL_CONFIG=examples/agent-pool.sudan.json
 QUEUE_TIMEOUT_SECONDS=30
 STICKY_TTL_SECONDS=1800
+DEBOUNCE_ENABLED=true
+DEBOUNCE_WINDOW_MS=1500
+DEBOUNCE_MAX_WAIT_MS=5000
 ```
 
 ## TokyoClaw Agent Bridge / TokyoClaw 业务桥
@@ -99,6 +102,13 @@ curl -sS -H "Authorization: Bearer $AGENT_BRIDGE_TOKEN" http://127.0.0.1:9070/ad
 - `/metrics` 适合探活脚本和监控采集。
 - `agents-pool pool` 是 `/admin/pool` 的命令行包装，适合日常 SSH 排查。
 - `/admin/pool` 用来看每个 worker 的 busy 状态、当前 session、sticky 绑定、队列长度、最近错误和 idle/busy 时长。
+- `debounce.pendingMessages` 大于 0 表示有同一客户的短消息正在等待合并；如果长期不归零，检查调用方是否保持 HTTP 连接等待回复。
+
+## Debounce For Chat Bridges / 聊天桥防抖
+
+For WeChat-style callers, enable debounce when customers often send one sentence split across several messages. The bridge merges only the same `logicalAgent + conversationId`; different customers still run concurrently.
+
+中文说明：防抖放在 agent pool bridge 内部以后，Sudan、TokyoClaw 或其他客服服务器都可以复用同一套机制。业务桥不用自己再实现“等一等再发给 agent”，只要保持 `conversationId` 稳定即可。
 
 ## Publishing Checklist / 发布前检查
 

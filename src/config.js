@@ -45,6 +45,10 @@ function loadConfig(env = process.env, baseDir = process.cwd()) {
     agentTimeoutSeconds: Number(env.AGENT_TIMEOUT_SECONDS || 120),
     queueTimeoutMs: Number(env.QUEUE_TIMEOUT_SECONDS || 30) * 1000,
     stickyTtlMs: Number(env.STICKY_TTL_SECONDS || 1800) * 1000,
+    debounceEnabled: parseBoolean(env.DEBOUNCE_ENABLED, false),
+    debounceWindowMs: Number(env.DEBOUNCE_WINDOW_MS || 0),
+    debounceMaxWaitMs: Number(env.DEBOUNCE_MAX_WAIT_MS || env.DEBOUNCE_WINDOW_MS || 0),
+    debounceMaxMessages: Number(env.DEBOUNCE_MAX_MESSAGES || 20),
     sessionStoreDir: resolvePath(env.SESSION_STORE_DIR || ".sessions", baseDir),
     sessionHistoryLimit: Number(env.SESSION_HISTORY_LIMIT || 20),
     agents: normalizedAgentConfig.agents,
@@ -134,6 +138,13 @@ function resolvePath(value, baseDir) {
 
 function cleanText(value) {
   return String(value || "").trim();
+}
+
+function parseBoolean(value, fallback) {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+  return ["1", "true", "yes", "y", "on"].includes(String(value).trim().toLowerCase());
 }
 
 module.exports = {

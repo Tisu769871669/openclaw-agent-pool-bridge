@@ -1,6 +1,7 @@
 const { AgentPool } = require("./agent-pool");
 const { ConversationQueueManager } = require("./conversation-queue");
 const { loadConfig, loadDotEnv } = require("./config");
+const { DebounceQueue } = require("./debounce-queue");
 const { createApp } = require("./http-server");
 const { runOpenClawAgent } = require("./openclaw-runner");
 const { SessionStore } = require("./session-store");
@@ -13,6 +14,12 @@ function createServerFromConfig(config) {
     agents: config.agents,
   });
   const queues = new ConversationQueueManager();
+  const debounce = new DebounceQueue({
+    enabled: config.debounceEnabled,
+    windowMs: config.debounceWindowMs,
+    maxWaitMs: config.debounceMaxWaitMs,
+    maxMessages: config.debounceMaxMessages,
+  });
   const sessionStore = new SessionStore({
     dir: config.sessionStoreDir,
     historyLimit: config.sessionHistoryLimit,
@@ -31,6 +38,7 @@ function createServerFromConfig(config) {
     defaultAgentId: config.defaultAgentId,
     pool,
     queues,
+    debounce,
     sessionStore,
     runner,
   });
@@ -39,6 +47,7 @@ function createServerFromConfig(config) {
 module.exports = {
   AgentPool,
   ConversationQueueManager,
+  DebounceQueue,
   SessionStore,
   createApp,
   createServerFromConfig,

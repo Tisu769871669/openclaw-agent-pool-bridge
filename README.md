@@ -21,6 +21,7 @@ It keeps the existing `/api/agents/chat` and `/api/agents/:agentId/chat` protoco
 Wechat and WeCom integrations often receive several customer messages at the same time. Calling one `openclaw agent --agent main` directly for every request can mix context or overload the same runtime. This bridge separates concerns:
 
 - one customer conversation is processed sequentially;
+- short bursts from the same customer can be debounced into one agent turn;
 - different customers can run concurrently;
 - each worker agent handles only one request at a time;
 - bridge-owned session history keeps continuity when a conversation is moved to another worker.
@@ -234,12 +235,28 @@ node scripts/sync-worker-workspaces.js main --config agent-pool.config.local.jso
 ## Concurrency Rules
 
 - Key scope: `logicalAgentId + conversationId`.
+- Optional debounce: when `DEBOUNCE_ENABLED=true`, short bursts for the same key are merged before they enter the conversation queue.
 - Same key: strictly sequential.
 - Different keys: run concurrently up to available workers.
 - Pool full: requests wait up to `QUEUE_TIMEOUT_SECONDS`, then return HTTP 429 with `error: "queue_timeout"`.
 - Soft stickiness: a conversation reuses its previous worker while available and inside `STICKY_TTL_SECONDS`; if that worker is busy, another free worker may be used.
 
-中文说明：判断 5 并发是否真的生效时，一定要用 5 个不同的 `conversationId` 测试；同一个 `conversationId` 会被设计性串行。
+中文说明：判断 5 并发是否真的生效时，一定要用 5 个不同的 `conversationId` 测试；同一个 `conversationId` 会先按配置防抖合并，再设计性串行。
+
+## Debounce Merge
+
+Debounce is off by default so existing deployments keep the old synchronous behavior. Enable it when your WeChat or WeCom caller can receive several short messages from the same customer in quick succession.
+
+```env
+DEBOUNCE_ENABLED=true
+DEBOUNCE_WINDOW_MS=1500
+DEBOUNCE_MAX_WAIT_MS=5000
+DEBOUNCE_MAX_MESSAGES=20
+```
+
+With debounce enabled, requests with the same `logicalAgent + conversationId` that arrive within the debounce window share one OpenClaw worker run. The bridge combines the user messages in order and all waiting HTTP callers receive the same final reply. Different conversations are not merged and can still run concurrently.
+
+中文说明：防抖合并解决“客户连发几句话，agent 回复多次”的问题。开启后，同一客户短时间内的多条消息会合成一次 agent 调用；不同客户不互相影响。
 
 ## Health And Metrics
 
@@ -252,6 +269,7 @@ curl http://127.0.0.1:9070/metrics
 
 `/health` exposes pool and queue counts. `/metrics` returns simple text counters that can be scraped or checked by PM2/systemd probes.
 `/admin/pool` exposes per-worker runtime state for operators: busy flag, current session binding, sticky bound sessions, pool waiters, conversation queue depth, idle duration, and the most recent worker error. It requires the same bearer token as chat requests when `AGENT_BRIDGE_TOKEN` is configured. `agents-pool pool` is the CLI wrapper for the same endpoint and reads `AGENT_BRIDGE_TOKEN` from the environment or local `.env` by default.
+`/health` and `/admin/pool` also expose debounce state: whether it is enabled, pending batches, and pending messages.
 
 中文说明：日常排查优先用 `agents-pool pool` 或直接看 `/admin/pool`。它能直接回答“哪个 worker 忙、绑了哪个 session、是否有积压、最近一次错误是什么”。
 

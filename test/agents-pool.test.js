@@ -234,6 +234,11 @@ test("pool command fetches live admin pool status with bearer token", async () =
             pendingTasks: 0,
             queues: [],
           },
+          debounce: {
+            enabled: true,
+            pendingBatches: 1,
+            pendingMessages: 2,
+          },
         }),
       };
     },
@@ -248,6 +253,8 @@ test("pool command fetches live admin pool status with bearer token", async () =
   assert.match(text, /BUSY/);
   assert.match(text, /bridge_main_customer-1/);
   assert.match(text, /queued=1/);
+  assert.match(text, /debounce=on/);
+  assert.match(text, /pendingMessages=2/);
 });
 
 test("help command lists every command with an operator description", async () => {
