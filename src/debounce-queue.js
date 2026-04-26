@@ -75,7 +75,6 @@ class DebounceQueue {
     };
     if (this.maxWaitMs > 0) {
       batch.maxTimer = setTimeout(() => this.flush(key), this.maxWaitMs);
-      batch.maxTimer.unref?.();
     }
     this.batches.set(key, batch);
     return batch;
@@ -86,7 +85,6 @@ class DebounceQueue {
       clearTimeout(batch.quietTimer);
     }
     batch.quietTimer = setTimeout(() => this.flush(key), this.calculateQuietDelayMs(batch));
-    batch.quietTimer.unref?.();
   }
 
   calculateQuietDelayMs(batch) {
