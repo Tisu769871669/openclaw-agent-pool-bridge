@@ -6,6 +6,10 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
+function escapeAttribute(value) {
+  return escapeHtml(value).replaceAll("'", "&#39;");
+}
+
 function validateArticlePackage(input) {
   const article = {
     title: String(input?.title || "").trim(),
@@ -13,6 +17,7 @@ function validateArticlePackage(input) {
     author: String(input?.author || "").trim(),
     markdown: String(input?.markdown || "").trim(),
     coverPath: String(input?.coverPath || "").trim(),
+    contentImages: normalizeContentImages(input?.contentImages),
     contentImagePaths: Array.isArray(input?.contentImagePaths) ? input.contentImagePaths.map(String) : [],
     sourceLinks: Array.isArray(input?.sourceLinks) ? input.sourceLinks.map(String) : [],
   };
@@ -29,16 +34,38 @@ function validateArticlePackage(input) {
   return article;
 }
 
+function normalizeContentImages(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((item, index) => {
+    const key = String(item?.key || `image${index + 1}`).trim();
+    const image = {
+      key,
+      path: String(item?.path || "").trim(),
+      alt: String(item?.alt || "").trim(),
+    };
+    if (!image.key) {
+      throw new Error("contentImages[].key is required");
+    }
+    if (!image.path) {
+      throw new Error(`contentImages[${image.key}].path is required`);
+    }
+    return image;
+  });
+}
+
 function renderInline(text) {
   return escapeHtml(text)
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2">$1</a>');
 }
 
-function renderWechatHtml(markdown) {
+function renderWechatHtml(markdown, options = {}) {
   const lines = String(markdown || "").split(/\r?\n/);
   const html = [];
   let listOpen = false;
+  const imageUrls = options.imageUrls || {};
 
   function closeList() {
     if (listOpen) {
@@ -51,6 +78,15 @@ function renderWechatHtml(markdown) {
     const line = rawLine.trim();
     if (!line) {
       closeList();
+      continue;
+    }
+    const imageMatch = line.match(/^\{\{image:([a-zA-Z0-9_-]+)\}\}$/);
+    if (imageMatch) {
+      closeList();
+      const image = normalizeImageUrl(imageUrls[imageMatch[1]]);
+      if (image.url) {
+        html.push(renderWechatImage(image.url, image.alt));
+      }
       continue;
     }
     if (line.startsWith("## ")) {
@@ -76,6 +112,24 @@ function renderWechatHtml(markdown) {
   }
   closeList();
   return html.join("\n");
+}
+
+function normalizeImageUrl(value) {
+  if (typeof value === "string") {
+    return { url: value, alt: "" };
+  }
+  return {
+    url: String(value?.url || "").trim(),
+    alt: String(value?.alt || "").trim(),
+  };
+}
+
+function renderWechatImage(url, alt = "") {
+  return [
+    '<p style="margin: 18px 0; text-align: center;">',
+    `<img src="${escapeAttribute(url)}" data-src="${escapeAttribute(url)}" alt="${escapeAttribute(alt)}" style="max-width: 100%; height: auto; display: block; margin: 0 auto;" />`,
+    "</p>",
+  ].join("");
 }
 
 module.exports = {

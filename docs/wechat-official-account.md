@@ -21,6 +21,31 @@ node skills/wechat-official-account/scripts/wechat-official-account.js \
   --thumb-media-id COVER_MEDIA_ID
 ```
 
+带新图片创建草稿：
+
+```bash
+node skills/wechat-official-account/scripts/wechat-official-account.js \
+  --mode draft-only \
+  --profile snowchuang-yihuang \
+  --article-json article.json \
+  --cover-path cover.jpg
+```
+
+`article.json` 可以声明正文图片。脚本会先上传图片到微信，再把返回的微信图片 URL 插入正文 HTML：
+
+```json
+{
+  "title": "低饱和韩系穿搭公式",
+  "author": "衣荒救星站",
+  "digest": "用基础款穿出韩系日常感。",
+  "coverPath": "cover.jpg",
+  "markdown": "## 搭配公式\n\n{{image:look1}}\n\n低饱和色系更耐看。",
+  "contentImages": [
+    { "key": "look1", "path": "look1.png", "alt": "韩系低饱和穿搭示意图" }
+  ]
+}
+```
+
 运行 `draft-only` 或 `publish` 前，需要通过环境变量提供公众号凭证：
 
 ```env
