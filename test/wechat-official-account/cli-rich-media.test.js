@@ -58,6 +58,58 @@ test("draft-only uploads cover and content images before adding draft", async ()
   assert.equal(calls.some((call) => call.url.includes("/cgi-bin/draft/add")), true);
 });
 
+test("draft-only can add draft from WeChat-ready HTML content", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-html-content-"));
+  const articlePath = path.join(dir, "article.json");
+  const coverPath = path.join(dir, "cover.jpg");
+  const lookPath = path.join(dir, "look.png");
+  fs.writeFileSync(coverPath, "cover-bytes");
+  fs.writeFileSync(lookPath, "look-bytes");
+  fs.writeFileSync(articlePath, JSON.stringify({
+    title: "韩式穿搭公式",
+    author: "衣荒救星站",
+    digest: "一篇带公众号 HTML 排版的测试稿。",
+    coverPath,
+    html: [
+      '<section style="padding: 16px; background: #fff8f0;">',
+      '<p><strong>低饱和韩系穿搭，照着穿就很稳。</strong></p>',
+      "{{image:look1}}",
+      "</section>",
+    ].join(""),
+    contentImages: [{ key: "look1", path: lookPath, alt: "韩系穿搭示意图" }],
+  }));
+
+  await main([
+    "--mode", "draft-only",
+    "--profile", "snowchuang-yihuang",
+    "--article-json", articlePath,
+    "--profiles-dir", path.join(__dirname, "..", "..", "skills", "wechat-official-account", "profiles"),
+    "--root-dir", dir,
+  ], {
+    WECHAT_MP_APP_ID: "app",
+    WECHAT_MP_APP_SECRET: "secret",
+    WECHAT_MP_FETCH_IMPL: async (url, options = {}) => {
+      if (url.includes("/cgi-bin/token")) {
+        return jsonResponse({ access_token: "token-1", expires_in: 7200 });
+      }
+      if (url.includes("/cgi-bin/material/add_material")) {
+        return jsonResponse({ media_id: "cover-media-id", url: "https://mmbiz.qpic.cn/cover.jpg" });
+      }
+      if (url.includes("/cgi-bin/media/uploadimg")) {
+        return jsonResponse({ url: "https://mmbiz.qpic.cn/look.jpg" });
+      }
+      if (url.includes("/cgi-bin/draft/add")) {
+        const payload = JSON.parse(options.body);
+        assert.match(payload.articles[0].content, /<section style="padding: 16px; background: #fff8f0;">/);
+        assert.match(payload.articles[0].content, /https:\/\/mmbiz\.qpic\.cn\/look\.jpg/);
+        assert.doesNotMatch(payload.articles[0].content, /\{\{image:look1\}\}/);
+        return jsonResponse({ media_id: "draft-media-id" });
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    },
+  });
+});
+
 function jsonResponse(payload) {
   return {
     ok: true,
