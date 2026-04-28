@@ -32,10 +32,29 @@ function validateArticlePackage(input) {
   if (!article.markdown && !article.html) {
     throw new Error("markdown or html is required");
   }
+  assertNoEditorialInstructions(`${article.title}\n${article.digest}\n${article.markdown}\n${article.html}`);
   if (article.html) {
     assertSafeWechatHtml(article.html);
   }
   return article;
+}
+
+function assertNoEditorialInstructions(value) {
+  const text = String(value || "");
+  const blockedPatterns = [
+    /这篇直接按[\s\S]{0,40}方式来/i,
+    /小红书穿搭笔记[\s\S]{0,30}一屏一个重点/i,
+    /短句[、,，]\s*公式[、,，]\s*避雷点/i,
+    /输出\s*JSON/i,
+    /写作要求/i,
+    /生成要求/i,
+    /提示词/i,
+  ];
+  for (const pattern of blockedPatterns) {
+    if (pattern.test(text)) {
+      throw new Error("editorial instruction text is not allowed in article body");
+    }
+  }
 }
 
 function assertSafeWechatHtml(html) {
@@ -137,10 +156,11 @@ function renderWechatHtml(markdown, options = {}) {
 }
 
 function renderArticleContent(article, options = {}) {
-  if (article.html) {
-    return renderWechatReadyHtml(article.html, options);
-  }
-  return renderWechatHtml(article.markdown, options);
+  const body = article.html
+    ? renderWechatReadyHtml(article.html, options)
+    : renderWechatHtml(article.markdown, options);
+  const footer = renderArticleFooter(options.footer, options);
+  return footer ? `${body}\n${footer}` : body;
 }
 
 function renderWechatReadyHtml(html, options = {}) {
@@ -169,7 +189,50 @@ function renderWechatImage(url, alt = "") {
   ].join("");
 }
 
+function renderArticleFooter(footer, options = {}) {
+  if (!footer?.enabled) {
+    return "";
+  }
+  const imageUrls = options.imageUrls || {};
+  const parts = [
+    '<section style="margin: 28px 0 0; padding: 18px 14px; background: #fff8ef; border-radius: 8px; text-align: center; color: #5b4f45;">',
+  ];
+  if (footer.title) {
+    parts.push(`<p style="margin: 0 0 8px; font-size: 17px;"><strong>${escapeHtml(footer.title)}</strong></p>`);
+  }
+  if (footer.description) {
+    parts.push(`<p style="margin: 0 0 14px; color: #8a6a52;">${escapeHtml(footer.description)}</p>`);
+  }
+  const miniProgram = footer.miniProgram || {};
+  if (miniProgram.appId && miniProgram.path && miniProgram.title && miniProgram.imageUrl) {
+    parts.push(renderMiniProgramCard(miniProgram));
+  }
+  for (const image of footer.qrImages || []) {
+    const uploaded = normalizeImageUrl(imageUrls[image.key]);
+    if (!uploaded.url) {
+      continue;
+    }
+    parts.push(renderWechatImage(uploaded.url, image.alt));
+    if (image.caption) {
+      parts.push(`<p style="margin: -8px 0 14px; color: #9a8a7a; font-size: 13px;">${escapeHtml(image.caption)}</p>`);
+    }
+  }
+  parts.push("</section>");
+  return parts.join("\n");
+}
+
+function renderMiniProgramCard(miniProgram) {
+  return [
+    `<mp-miniprogram data-miniprogram-appid="${escapeAttribute(miniProgram.appId)}"`,
+    ` data-miniprogram-path="${escapeAttribute(miniProgram.path)}"`,
+    ` data-miniprogram-title="${escapeAttribute(miniProgram.title)}"`,
+    ` data-miniprogram-imageurl="${escapeAttribute(miniProgram.imageUrl)}">`,
+    "</mp-miniprogram>",
+  ].join("");
+}
+
 module.exports = {
+  renderArticleFooter,
   renderArticleContent,
   renderWechatHtml,
   validateArticlePackage,

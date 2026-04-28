@@ -15,5 +15,24 @@
     "voice": "亲切、实用、有画面感、适度成交",
     "avoid": ["全网最低", "绝对显瘦", "保证不撞衫", "稳赚", "100%有效", "闭眼入", "智商税"]
   },
-  "sourcePreferences": ["雪创商品和活动数据", "已确认的穿搭素材", "用户提供的来源链接"]
+  "sourcePreferences": ["雪创商品和活动数据", "已确认的穿搭素材", "用户提供的来源链接"],
+  "articleFooter": {
+    "enabled": true,
+    "title": "想要更多穿搭建议？",
+    "description": "扫码添加雪创，获取更适合你的日常搭配建议。",
+    "qrImages": [
+      {
+        "key": "snowchuangWecomQr",
+        "path": "../assets/snowchuang/wecom-qr.jpg",
+        "alt": "雪创连科企业微信二维码",
+        "caption": "扫码添加企业微信"
+      },
+      {
+        "key": "snowchuangPersonalQr",
+        "path": "../assets/snowchuang/personal-qr.jpg",
+        "alt": "雪创精选微信二维码",
+        "caption": "扫码添加个人微信"
+      }
+    ]
+  }
 }
