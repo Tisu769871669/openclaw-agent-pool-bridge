@@ -1,0 +1,19 @@
+{
+  "id": "snowchuang-yihuang",
+  "subject": "雪创",
+  "officialAccount": "衣荒救星站",
+  "direction": ["卖货", "穿搭", "服饰"],
+  "defaultAuthor": "衣荒救星站",
+  "defaultTheme": "apparel-commerce",
+  "publishPolicy": {
+    "defaultMode": "publish",
+    "requireManualConfirmation": false,
+    "requireComplianceCheck": true,
+    "maxAutoPublishPerDay": 3
+  },
+  "contentRules": {
+    "voice": "亲切、实用、有画面感、适度成交",
+    "avoid": ["全网最低", "绝对显瘦", "保证不撞衫", "稳赚", "100%有效", "闭眼入", "智商税"]
+  },
+  "sourcePreferences": ["雪创商品和活动数据", "已确认的穿搭素材", "用户提供的来源链接"]
+}
