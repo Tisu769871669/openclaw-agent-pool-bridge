@@ -1,0 +1,9 @@
+{
+  "id": "snowchuang-yihuang",
+  "subject": "雪创",
+  "defaultModel": "gpt-image-2",
+  "defaultSize": "1024x1024",
+  "styleGuide": "亲切、实用、有画面感；韩系低饱和；公众号正文图；不含文字、水印、logo。",
+  "promptPrefix": "Create an original image for a WeChat official account fashion article.",
+  "blockedPromptTerms": ["小红书原图", "照搬", "水印", "logo", "明星同款脸"]
+}
