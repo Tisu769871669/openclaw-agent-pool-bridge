@@ -79,3 +79,20 @@ agents-pool sync main --source-workspace /root/.openclaw/workspace
 ```
 
 不要直接修改单个 worker workspace。
+
+## Generated Image Handoff
+
+For generated article images, use `skills/article-image-generator/` first. It writes `article.with-images.json`, which already contains `coverPath` and `contentImages`.
+
+```bash
+node skills/article-image-generator/scripts/article-image-generator.js \
+  --mode generate \
+  --image-plan image-plan.json \
+  --article-json article.json \
+  --out-article article.with-images.json
+
+node skills/wechat-official-account/scripts/wechat-official-account.js \
+  --mode draft-only \
+  --profile snowchuang-yihuang \
+  --article-json article.with-images.json
+```
