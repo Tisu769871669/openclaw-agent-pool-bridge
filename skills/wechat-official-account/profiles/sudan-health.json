@@ -1,0 +1,19 @@
+{
+  "id": "sudan-health",
+  "subject": "苏丹",
+  "officialAccount": "大健康",
+  "direction": ["大健康", "卖货"],
+  "defaultAuthor": "苏丹",
+  "defaultTheme": "health-commerce",
+  "publishPolicy": {
+    "defaultMode": "publish",
+    "requireManualConfirmation": false,
+    "requireComplianceCheck": true,
+    "maxAutoPublishPerDay": 3
+  },
+  "contentRules": {
+    "voice": "温和、可信、生活化、适度成交",
+    "avoid": ["治愈", "根治", "保证有效", "替代医生", "包治", "立刻见效"]
+  },
+  "sourcePreferences": ["苏丹商品和活动数据", "已确认的知识库内容", "用户提供的来源链接"]
+}

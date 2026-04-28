@@ -1,0 +1,41 @@
+---
+name: wechat-official-account
+description: 编写微信公众号文章、搜索整理素材、上传草稿并通过微信官方 API 自动发布。适用于多主体公众号运营；业务定位通过 profiles/*.json 控制。
+---
+
+# 微信公众号运营技能
+
+使用本技能处理微信公众号内容运营任务：
+
+- 编写公众号文章；
+- 搜索和整理素材；
+- 创建文章包；
+- 上传草稿；
+- 自动发布；
+- 查询和记录发布结果。
+
+## 默认流程
+
+1. 选择 profile，例如 `sudan-health`。
+2. 明确文章主题、目标读者、参考资料和发布模式。
+3. 先生成文章包，包含标题、摘要、作者、Markdown 正文、封面说明。
+4. 对大健康、金融、法律等高风险领域做合规检查。
+5. 使用 `scripts/wechat-official-account.js --mode dry-run` 预检查。
+6. 只有在用户明确要求自动发布，且 profile 允许时，才使用 `--mode publish`。
+7. 发布后检查输出和审计日志。
+
+## 发布模式
+
+- `dry-run`：不调用微信 API。
+- `draft-only`：创建草稿，不发布。
+- `publish`：创建草稿并提交发布。
+
+## Sudan 大健康 profile
+
+`profiles/sudan-health.json` 用于苏丹大健康公众号。写作时保持可信、生活化、适度成交，不承诺疗效，不制造焦虑，不把产品描述成医疗建议。
+
+## 安全要求
+
+- 不把 `WECHAT_MP_APP_SECRET`、access token、密码写进 Git 或日志。
+- 服务器上配置凭证、改 env、改服务，必须先得到用户同意。
+- 自动发布必须留下审计日志。
