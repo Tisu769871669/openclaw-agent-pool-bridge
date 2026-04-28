@@ -83,7 +83,10 @@ async function main(argv = process.argv.slice(2), env = process.env, options = {
   const cwd = options.cwd || process.cwd();
   const planPath = resolvePath(cwd, args.imagePlan);
   const rawPlan = loadJson(planPath);
-  const articlePath = resolvePath(path.dirname(planPath), args.articleJson || rawPlan.articleJson);
+  const planDir = path.dirname(planPath);
+  const articlePath = args.articleJson
+    ? resolvePath(cwd, args.articleJson)
+    : resolvePath(planDir, rawPlan.articleJson);
   if (!articlePath) throw new Error("--article-json or imagePlan.articleJson is required");
 
   const article = loadJson(articlePath);
@@ -100,11 +103,12 @@ async function main(argv = process.argv.slice(2), env = process.env, options = {
     { articleText: articleText(article), strictPlaceholders: args.strictPlaceholders }
   );
 
-  const outputDir = resolvePath(path.dirname(planPath), args.outputDir || rawPlan.outputDir || "article-image-assets");
-  const outArticle = resolvePath(
-    path.dirname(planPath),
-    args.outArticle || path.join(outputDir, "..", "article.with-images.json")
-  );
+  const outputDir = args.outputDir
+    ? resolvePath(cwd, args.outputDir)
+    : resolvePath(planDir, rawPlan.outputDir || "article-image-assets");
+  const outArticle = args.outArticle
+    ? resolvePath(cwd, args.outArticle)
+    : path.resolve(outputDir, "..", "article.with-images.json");
   const manifestPath = path.join(outputDir, "assets-manifest.json");
   const record = {
     createdAt: new Date().toISOString(),

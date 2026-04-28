@@ -58,6 +58,37 @@ test("dry-run validates and writes planned manifest without API key", async () =
   assert.equal(fs.existsSync(outArticle), false);
 });
 
+test("dry-run resolves CLI relative paths from the working directory", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "image-cli-relative-"));
+  const nestedDir = path.join(dir, "nested");
+  fs.mkdirSync(nestedDir);
+  const articlePath = path.join(nestedDir, "article.json");
+  const planPath = path.join(nestedDir, "image-plan.json");
+  const outputDir = path.join(nestedDir, "assets");
+
+  fs.writeFileSync(articlePath, JSON.stringify({
+    title: "标题",
+    digest: "摘要",
+    markdown: "{{image:look}}",
+  }));
+  fs.writeFileSync(planPath, JSON.stringify({
+    profile: "example",
+    images: [{ key: "look", role: "body", prompt: "Look image", alt: "图" }],
+  }));
+
+  const result = await main([
+    "--mode", "dry-run",
+    "--image-plan", "nested/image-plan.json",
+    "--article-json", "nested/article.json",
+    "--output-dir", "nested/assets",
+    "--out-article", "nested/article.with-images.json",
+    "--profiles-dir", profilesDir,
+  ], {}, { cwd: dir });
+
+  assert.equal(result.ok, true);
+  assert.equal(fs.existsSync(path.join(outputDir, "assets-manifest.json")), true);
+});
+
 test("generate writes image files, manifest, and updated article", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "image-cli-generate-"));
   const articlePath = path.join(dir, "article.json");
