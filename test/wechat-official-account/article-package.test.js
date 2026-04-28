@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { validateArticlePackage, renderWechatHtml } = require("../../skills/wechat-official-account/scripts/lib/article-package");
+const { validateArticlePackage, renderArticleContent, renderWechatHtml } = require("../../skills/wechat-official-account/scripts/lib/article-package");
 
 test("validateArticlePackage accepts complete article", () => {
   const article = validateArticlePackage({
@@ -20,7 +20,29 @@ test("validateArticlePackage accepts complete article", () => {
 test("validateArticlePackage rejects empty body", () => {
   assert.throws(
     () => validateArticlePackage({ title: "标题", digest: "摘要", markdown: "" }),
-    /markdown is required/
+    /markdown or html is required/
+  );
+});
+
+test("validateArticlePackage accepts WeChat-ready HTML body", () => {
+  const article = validateArticlePackage({
+    title: "韩系穿搭公式",
+    digest: "低饱和色系照着穿。",
+    html: "<section><p>今天这套太适合通勤了。</p></section>",
+  });
+
+  assert.equal(article.markdown, "");
+  assert.equal(article.html, "<section><p>今天这套太适合通勤了。</p></section>");
+});
+
+test("validateArticlePackage rejects unsafe HTML body", () => {
+  assert.throws(
+    () => validateArticlePackage({
+      title: "韩系穿搭公式",
+      digest: "低饱和色系照着穿。",
+      html: "<section><script>alert(1)</script></section>",
+    }),
+    /unsafe html/i
   );
 });
 
@@ -46,4 +68,31 @@ test("renderWechatHtml renders uploaded image placeholders", () => {
   assert.match(html, /src="https:\/\/mmbiz\.qpic\.cn\/example\.jpg"/);
   assert.match(html, /alt="低饱和韩系通勤穿搭"/);
   assert.match(html, /<p>搭配说明<\/p>/);
+});
+
+test("renderArticleContent renders WeChat-ready HTML with uploaded image placeholders", () => {
+  const article = validateArticlePackage({
+    title: "韩系穿搭公式",
+    digest: "低饱和色系照着穿。",
+    html: [
+      '<section style="margin: 0 0 18px;">',
+      '<p><strong>通勤这样穿，真的不费力。</strong></p>',
+      "{{image:look1}}",
+      "</section>",
+    ].join(""),
+    contentImages: [{ key: "look1", path: "look.png", alt: "低饱和韩系通勤穿搭" }],
+  });
+
+  const html = renderArticleContent(article, {
+    imageUrls: {
+      look1: {
+        url: "https://mmbiz.qpic.cn/look.jpg",
+        alt: "低饱和韩系通勤穿搭",
+      },
+    },
+  });
+
+  assert.match(html, /<section style="margin: 0 0 18px;">/);
+  assert.match(html, /<strong>通勤这样穿，真的不费力。<\/strong>/);
+  assert.match(html, /src="https:\/\/mmbiz\.qpic\.cn\/look\.jpg"/);
 });

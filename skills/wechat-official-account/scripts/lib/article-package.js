@@ -16,6 +16,7 @@ function validateArticlePackage(input) {
     digest: String(input?.digest || "").trim(),
     author: String(input?.author || "").trim(),
     markdown: String(input?.markdown || "").trim(),
+    html: String(input?.html || "").trim(),
     coverPath: String(input?.coverPath || "").trim(),
     contentImages: normalizeContentImages(input?.contentImages),
     contentImagePaths: Array.isArray(input?.contentImagePaths) ? input.contentImagePaths.map(String) : [],
@@ -28,10 +29,31 @@ function validateArticlePackage(input) {
   if (!article.digest) {
     throw new Error("digest is required");
   }
-  if (!article.markdown) {
-    throw new Error("markdown is required");
+  if (!article.markdown && !article.html) {
+    throw new Error("markdown or html is required");
+  }
+  if (article.html) {
+    assertSafeWechatHtml(article.html);
   }
   return article;
+}
+
+function assertSafeWechatHtml(html) {
+  const blockedPatterns = [
+    /<\s*script\b/i,
+    /<\s*iframe\b/i,
+    /<\s*object\b/i,
+    /<\s*embed\b/i,
+    /<\s*form\b/i,
+    /<\s*input\b/i,
+    /\son[a-z]+\s*=/i,
+    /javascript\s*:/i,
+  ];
+  for (const pattern of blockedPatterns) {
+    if (pattern.test(html)) {
+      throw new Error("unsafe html is not allowed in article package");
+    }
+  }
 }
 
 function normalizeContentImages(value) {
@@ -114,6 +136,21 @@ function renderWechatHtml(markdown, options = {}) {
   return html.join("\n");
 }
 
+function renderArticleContent(article, options = {}) {
+  if (article.html) {
+    return renderWechatReadyHtml(article.html, options);
+  }
+  return renderWechatHtml(article.markdown, options);
+}
+
+function renderWechatReadyHtml(html, options = {}) {
+  const imageUrls = options.imageUrls || {};
+  return String(html || "").replace(/\{\{image:([a-zA-Z0-9_-]+)\}\}/g, (_match, key) => {
+    const image = normalizeImageUrl(imageUrls[key]);
+    return image.url ? renderWechatImage(image.url, image.alt) : "";
+  });
+}
+
 function normalizeImageUrl(value) {
   if (typeof value === "string") {
     return { url: value, alt: "" };
@@ -133,6 +170,7 @@ function renderWechatImage(url, alt = "") {
 }
 
 module.exports = {
+  renderArticleContent,
   renderWechatHtml,
   validateArticlePackage,
 };

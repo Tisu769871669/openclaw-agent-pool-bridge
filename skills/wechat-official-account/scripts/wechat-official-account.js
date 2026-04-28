@@ -2,7 +2,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { validateArticlePackage, renderWechatHtml } = require("./lib/article-package");
+const { validateArticlePackage, renderArticleContent } = require("./lib/article-package");
 const { writeAuditRecord } = require("./lib/audit-log");
 const { checkCompliance } = require("./lib/compliance");
 const { loadProfile } = require("./lib/profile");
@@ -55,7 +55,8 @@ async function main(argv = process.argv.slice(2), env = process.env) {
 
   const profile = loadProfile(args.profile, { profilesDir: args.profilesDir });
   const article = loadArticle(args.articleJson);
-  const compliance = checkCompliance(`${article.title}\n${article.digest}\n${article.markdown}`, profile);
+  const bodyForCompliance = article.markdown || article.html;
+  const compliance = checkCompliance(`${article.title}\n${article.digest}\n${bodyForCompliance}`, profile);
 
   if (profile.publishPolicy.requireComplianceCheck && !compliance.passed) {
     throw new Error(`Compliance check failed: ${compliance.matches.map((item) => item.term).join(", ")}`);
@@ -72,7 +73,7 @@ async function main(argv = process.argv.slice(2), env = process.env) {
     articlePath: path.resolve(args.articleJson),
   };
 
-  let html = renderWechatHtml(article.markdown);
+  let html = renderArticleContent(article);
 
   if (args.mode !== "dry-run") {
     const client = createClientFromEnv(env);
@@ -96,7 +97,7 @@ async function main(argv = process.argv.slice(2), env = process.env) {
     }
     if (Object.keys(imageUrls).length) {
       record.contentImages = Object.entries(imageUrls).map(([key, value]) => ({ key, url: value.url }));
-      html = renderWechatHtml(article.markdown, { imageUrls });
+      html = renderArticleContent(article, { imageUrls });
     }
     const draft = await client.addDraft([{
       title: article.title,
