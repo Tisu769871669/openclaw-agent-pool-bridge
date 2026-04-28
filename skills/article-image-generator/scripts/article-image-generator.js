@@ -50,6 +50,8 @@ function buildClient(env, options) {
   return new Image2Client({
     apiKey: env.IMAGE2_API_KEY,
     baseUrl: env.IMAGE2_API_BASE_URL,
+    timeoutMs: env.IMAGE2_TIMEOUT_MS,
+    maxRetries: env.IMAGE2_MAX_RETRIES,
     fetchImpl: options.fetchImpl,
   });
 }

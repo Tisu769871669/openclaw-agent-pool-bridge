@@ -134,6 +134,50 @@ test("generate does not write article when image generation fails", async () => 
   assert.equal(fs.existsSync(outArticle), false);
 });
 
+test("generate wires timeout and retry environment values into the image client", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "image-cli-env-"));
+  const articlePath = path.join(dir, "article.json");
+  const planPath = path.join(dir, "image-plan.json");
+  const outputDir = path.join(dir, "assets");
+  const outArticle = path.join(dir, "article.with-images.json");
+  let calls = 0;
+
+  fs.writeFileSync(articlePath, JSON.stringify({
+    title: "标题",
+    digest: "摘要",
+    markdown: "{{image:look}}",
+  }));
+  fs.writeFileSync(planPath, JSON.stringify({
+    profile: "example",
+    images: [{ key: "look", role: "body", prompt: "Look image", alt: "图" }],
+  }));
+
+  const result = await main([
+    "--mode", "generate",
+    "--image-plan", planPath,
+    "--article-json", articlePath,
+    "--output-dir", outputDir,
+    "--out-article", outArticle,
+    "--profiles-dir", profilesDir,
+  ], {
+    IMAGE2_API_KEY: "secret",
+    IMAGE2_TIMEOUT_MS: "1000",
+    IMAGE2_MAX_RETRIES: "1",
+  }, {
+    fetchImpl: async (url, options) => {
+      assert.equal(typeof options.signal.aborted, "boolean");
+      calls += 1;
+      if (calls === 1) {
+        return { ok: false, status: 500, async text() { return "temporary failure"; } };
+      }
+      return jsonResponse({ data: [{ b64_json: Buffer.from("env-ok").toString("base64") }] });
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(calls, 2);
+});
+
 function jsonResponse(payload) {
   return {
     ok: true,
