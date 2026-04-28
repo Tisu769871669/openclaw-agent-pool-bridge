@@ -1,0 +1,9 @@
+{
+  "id": "example",
+  "subject": "示例",
+  "defaultModel": "gpt-image-2",
+  "defaultSize": "1024x1024",
+  "styleGuide": "通用公众号正文配图；原创；不含文字、水印、logo。",
+  "promptPrefix": "Create an original article image.",
+  "blockedPromptTerms": ["照搬", "水印", "logo"]
+}

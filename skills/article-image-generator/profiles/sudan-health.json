@@ -1,0 +1,9 @@
+{
+  "id": "sudan-health",
+  "subject": "苏丹",
+  "defaultModel": "gpt-image-2",
+  "defaultSize": "1024x1024",
+  "styleGuide": "温和、可信、生活化；大健康生活方式配图；不展示医疗奇迹；不含文字、水印、logo。",
+  "promptPrefix": "Create an original image for a restrained health and lifestyle WeChat official account article.",
+  "blockedPromptTerms": ["治愈", "根治", "保证有效", "病前病后对比", "水印", "logo"]
+}

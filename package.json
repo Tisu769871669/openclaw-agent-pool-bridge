@@ -14,7 +14,7 @@
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test",
-    "check": "node --check src/server.js && node --check src/debounce-queue.js && node --check src/prompt-adapter.js && node --check src/retrieval-adapter.js && node --check scripts/agents-pool.js && node --check scripts/create-worker-pool.js && node --check scripts/sync-worker-workspaces.js && node --check skills/wechat-official-account/scripts/wechat-official-account.js"
+    "check": "node --check src/server.js && node --check src/debounce-queue.js && node --check src/prompt-adapter.js && node --check src/retrieval-adapter.js && node --check scripts/agents-pool.js && node --check scripts/create-worker-pool.js && node --check scripts/sync-worker-workspaces.js && node --check skills/wechat-official-account/scripts/wechat-official-account.js && node --check skills/article-image-generator/scripts/article-image-generator.js"
   },
   "keywords": [
     "openclaw",
