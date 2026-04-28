@@ -26,6 +26,9 @@ test("loadProfile loads snowchuang-yihuang profile", () => {
   assert.deepEqual(profile.direction, ["卖货", "穿搭", "服饰"]);
   assert.equal(profile.publishPolicy.defaultMode, "publish");
   assert.equal(profile.publishPolicy.requireComplianceCheck, true);
+  assert.equal(profile.articleFooter.enabled, true);
+  assert.equal(profile.articleFooter.qrImages.length, 2);
+  assert.equal(path.isAbsolute(profile.articleFooter.qrImages[0].path), true);
 });
 
 test("validateProfile rejects missing publish policy", () => {

@@ -110,6 +110,89 @@ test("draft-only can add draft from WeChat-ready HTML content", async () => {
   });
 });
 
+test("draft-only appends configured footer QR images", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-footer-"));
+  const profilesDir = path.join(dir, "profiles");
+  fs.mkdirSync(profilesDir);
+  const articlePath = path.join(dir, "article.json");
+  const coverPath = path.join(dir, "cover.jpg");
+  const lookPath = path.join(dir, "look.png");
+  const wecomQrPath = path.join(dir, "wecom.jpg");
+  const personalQrPath = path.join(dir, "personal.jpg");
+  fs.writeFileSync(coverPath, "cover-bytes");
+  fs.writeFileSync(lookPath, "look-bytes");
+  fs.writeFileSync(wecomQrPath, "wecom-qr-bytes");
+  fs.writeFileSync(personalQrPath, "personal-qr-bytes");
+  fs.writeFileSync(path.join(profilesDir, "footer-test.json"), JSON.stringify({
+    id: "footer-test",
+    subject: "雪创",
+    officialAccount: "衣荒救星站",
+    publishPolicy: {
+      defaultMode: "publish",
+      requireComplianceCheck: true,
+    },
+    articleFooter: {
+      enabled: true,
+      title: "想要更多穿搭建议",
+      description: "扫码添加雪创，获取一对一搭配建议。",
+      qrImages: [
+        { key: "wecomQr", path: wecomQrPath, alt: "企业微信二维码", caption: "添加企业微信" },
+        { key: "personalQr", path: personalQrPath, alt: "个人微信二维码", caption: "添加个人微信" },
+      ],
+    },
+  }));
+  fs.writeFileSync(articlePath, JSON.stringify({
+    title: "韩式穿搭公式",
+    author: "衣荒救星站",
+    digest: "一篇带文末二维码的测试稿。",
+    coverPath,
+    markdown: "## 搭配公式\n\n{{image:look1}}\n\n低饱和色系更耐看。",
+    contentImages: [{ key: "look1", path: lookPath, alt: "韩系穿搭示意图" }],
+  }));
+
+  const uploadedMedia = [];
+  await main([
+    "--mode", "draft-only",
+    "--profile", "footer-test",
+    "--article-json", articlePath,
+    "--profiles-dir", profilesDir,
+    "--root-dir", dir,
+  ], {
+    WECHAT_MP_APP_ID: "app",
+    WECHAT_MP_APP_SECRET: "secret",
+    WECHAT_MP_FETCH_IMPL: async (url, options = {}) => {
+      if (url.includes("/cgi-bin/token")) {
+        return jsonResponse({ access_token: "token-1", expires_in: 7200 });
+      }
+      if (url.includes("/cgi-bin/material/add_material")) {
+        return jsonResponse({ media_id: "cover-media-id", url: "https://mmbiz.qpic.cn/cover.jpg" });
+      }
+      if (url.includes("/cgi-bin/media/uploadimg")) {
+        const filename = getMultipartFilename(options.body);
+        uploadedMedia.push(filename);
+        return jsonResponse({ url: `https://mmbiz.qpic.cn/${filename}` });
+      }
+      if (url.includes("/cgi-bin/draft/add")) {
+        const payload = JSON.parse(options.body);
+        assert.match(payload.articles[0].content, /想要更多穿搭建议/);
+        assert.match(payload.articles[0].content, /添加企业微信/);
+        assert.match(payload.articles[0].content, /https:\/\/mmbiz\.qpic\.cn\/wecom\.jpg/);
+        assert.match(payload.articles[0].content, /https:\/\/mmbiz\.qpic\.cn\/personal\.jpg/);
+        return jsonResponse({ media_id: "draft-media-id" });
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    },
+  });
+
+  assert.deepEqual(uploadedMedia.sort(), ["look.png", "personal.jpg", "wecom.jpg"]);
+});
+
+function getMultipartFilename(form) {
+  const entry = Array.from(form.entries()).find(([name]) => name === "media");
+  assert.ok(entry, "media multipart field should exist");
+  return entry[1].name;
+}
+
 function jsonResponse(payload) {
   return {
     ok: true,

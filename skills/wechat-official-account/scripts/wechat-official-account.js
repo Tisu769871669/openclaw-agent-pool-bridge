@@ -73,7 +73,8 @@ async function main(argv = process.argv.slice(2), env = process.env) {
     articlePath: path.resolve(args.articleJson),
   };
 
-  let html = renderArticleContent(article);
+  const footer = profile.articleFooter?.enabled ? profile.articleFooter : null;
+  let html = renderArticleContent(article, { footer });
 
   if (args.mode !== "dry-run") {
     const client = createClientFromEnv(env);
@@ -88,7 +89,8 @@ async function main(argv = process.argv.slice(2), env = process.env) {
       throw new Error("--thumb-media-id or --cover-path/article.coverPath is required for draft-only or publish mode");
     }
     const imageUrls = {};
-    for (const image of article.contentImages) {
+    const footerImages = footer?.qrImages || [];
+    for (const image of [...article.contentImages, ...footerImages]) {
       const uploaded = await client.uploadArticleImage(image.path);
       imageUrls[image.key] = {
         url: uploaded.url,
@@ -96,8 +98,11 @@ async function main(argv = process.argv.slice(2), env = process.env) {
       };
     }
     if (Object.keys(imageUrls).length) {
-      record.contentImages = Object.entries(imageUrls).map(([key, value]) => ({ key, url: value.url }));
-      html = renderArticleContent(article, { imageUrls });
+      record.contentImages = article.contentImages.map((image) => ({ key: image.key, url: imageUrls[image.key]?.url }));
+      if (footerImages.length) {
+        record.footerImages = footerImages.map((image) => ({ key: image.key, url: imageUrls[image.key]?.url }));
+      }
+      html = renderArticleContent(article, { imageUrls, footer });
     }
     const draft = await client.addDraft([{
       title: article.title,

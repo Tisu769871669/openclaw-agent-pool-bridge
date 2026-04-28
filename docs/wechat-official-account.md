@@ -63,6 +63,45 @@ node skills/wechat-official-account/scripts/wechat-official-account.js \
 
 `html` 字段会拒绝明显危险的脚本、iframe、事件属性和 `javascript:` 链接。公众号素材仍应使用原创图片、授权图片或用户提供图片，不要直接搬运小红书原图。
 
+不要把生成方式写进正文。比如“这篇直接按小红书穿搭笔记的方式来：短句、公式、避雷点，一屏一个重点”属于给 Agent 的写作约束，不属于读者正文，脚本会直接拒绝这类 article package。
+
+## 文末 CTA 与二维码
+
+profile 可以配置 `articleFooter`。它会在正文末尾自动追加引导区，并在创建草稿/发布时上传二维码图片：
+
+```json
+{
+  "articleFooter": {
+    "enabled": true,
+    "title": "想要更多穿搭建议？",
+    "description": "扫码添加雪创，获取更适合你的日常搭配建议。",
+    "qrImages": [
+      {
+        "key": "snowchuangWecomQr",
+        "path": "../assets/snowchuang/wecom-qr.jpg",
+        "alt": "雪创连科企业微信二维码",
+        "caption": "扫码添加企业微信"
+      }
+    ]
+  }
+}
+```
+
+如果要插入小程序卡片，在 `articleFooter.miniProgram` 里配置完整字段：
+
+```json
+{
+  "miniProgram": {
+    "appId": "小程序 AppID",
+    "path": "pages/index/index",
+    "title": "卡片标题",
+    "imageUrl": "已上传到微信素材或可用的封面图 URL"
+  }
+}
+```
+
+小程序字段不完整时，脚本不会渲染 `<mp-miniprogram>`，避免生成无效卡片。二维码和小程序 CTA 都由 profile 自动追加，文章正文里不要手写。
+
 运行 `draft-only` 或 `publish` 前，需要通过环境变量提供公众号凭证：
 
 ```env

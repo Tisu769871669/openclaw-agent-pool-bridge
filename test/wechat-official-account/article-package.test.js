@@ -46,6 +46,22 @@ test("validateArticlePackage rejects unsafe HTML body", () => {
   );
 });
 
+test("validateArticlePackage rejects editorial generation instructions in body", () => {
+  assert.throws(
+    () => validateArticlePackage({
+      title: "韩系穿搭公式",
+      digest: "低饱和色系照着穿。",
+      html: [
+        "<section>",
+        "<p>这篇直接按“小红书穿搭笔记”的方式来：短句、公式、避雷点，一屏一个重点。</p>",
+        "<p>先说结论：韩系氛围感，抓这 3 个词就够了。</p>",
+        "</section>",
+      ].join(""),
+    }),
+    /editorial instruction/i
+  );
+});
+
 test("renderWechatHtml renders safe basic markdown", () => {
   const html = renderWechatHtml("## 小标题\n\n第一段\n\n- 要点一\n- 要点二");
 
