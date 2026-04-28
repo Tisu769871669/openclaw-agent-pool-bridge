@@ -1,3 +1,6 @@
+const fs = require("node:fs");
+const path = require("node:path");
+
 class WeChatApiError extends Error {
   constructor(message, payload = {}) {
     super(message);
@@ -39,6 +42,14 @@ class WeChatMpClient {
     return this.postJson("/cgi-bin/draft/add", { articles });
   }
 
+  async uploadArticleImage(media, options = {}) {
+    return this.postMultipart("/cgi-bin/media/uploadimg", media, options);
+  }
+
+  async uploadPermanentImage(media, options = {}) {
+    return this.postMultipart("/cgi-bin/material/add_material", media, options, { type: "image" });
+  }
+
   async submitFreePublish(mediaId) {
     return this.postJson("/cgi-bin/freepublish/submit", { media_id: mediaId });
   }
@@ -57,6 +68,19 @@ class WeChatMpClient {
     });
   }
 
+  async postMultipart(apiPath, media, options = {}, params = {}) {
+    const token = await this.getAccessToken();
+    const searchParams = new URLSearchParams({ access_token: token, ...params });
+    const url = `${this.baseUrl}${apiPath}?${searchParams.toString()}`;
+    const form = new FormData();
+    const file = normalizeMedia(media, options);
+    form.append("media", new Blob([file.buffer], { type: file.contentType }), file.filename);
+    return this.getJson(url, {
+      method: "POST",
+      body: form,
+    });
+  }
+
   async getJson(url, options = {}) {
     const response = await this.fetchImpl(url, options);
     const text = await response.text();
@@ -71,6 +95,33 @@ class WeChatMpClient {
     }
     return payload;
   }
+}
+
+function normalizeMedia(media, options = {}) {
+  if (Buffer.isBuffer(media)) {
+    return {
+      buffer: media,
+      filename: options.filename || "image.jpg",
+      contentType: options.contentType || contentTypeForFilename(options.filename || "image.jpg"),
+    };
+  }
+  const filePath = String(media || "").trim();
+  if (!filePath) {
+    throw new Error("image path is required");
+  }
+  return {
+    buffer: fs.readFileSync(filePath),
+    filename: options.filename || path.basename(filePath),
+    contentType: options.contentType || contentTypeForFilename(filePath),
+  };
+}
+
+function contentTypeForFilename(filePath) {
+  const ext = path.extname(String(filePath || "")).toLowerCase();
+  if (ext === ".png") return "image/png";
+  if (ext === ".gif") return "image/gif";
+  if (ext === ".webp") return "image/webp";
+  return "image/jpeg";
 }
 
 module.exports = {

@@ -20,6 +20,7 @@ function parseArgs(argv) {
     else if (arg === "--profile") args.profile = argv[++index];
     else if (arg === "--article-json") args.articleJson = argv[++index];
     else if (arg === "--thumb-media-id") args.thumbMediaId = argv[++index];
+    else if (arg === "--cover-path") args.coverPath = argv[++index];
     else if (arg === "--root-dir") args.rootDir = argv[++index];
     else if (arg === "--profiles-dir") args.profilesDir = argv[++index];
     else throw new Error(`Unknown argument: ${arg}`);
@@ -42,6 +43,7 @@ function createClientFromEnv(env) {
   return new WeChatMpClient({
     appId: env.WECHAT_MP_APP_ID,
     appSecret: env.WECHAT_MP_APP_SECRET,
+    fetchImpl: typeof env.WECHAT_MP_FETCH_IMPL === "function" ? env.WECHAT_MP_FETCH_IMPL : undefined,
   });
 }
 
@@ -53,7 +55,6 @@ async function main(argv = process.argv.slice(2), env = process.env) {
 
   const profile = loadProfile(args.profile, { profilesDir: args.profilesDir });
   const article = loadArticle(args.articleJson);
-  const html = renderWechatHtml(article.markdown);
   const compliance = checkCompliance(`${article.title}\n${article.digest}\n${article.markdown}`, profile);
 
   if (profile.publishPolicy.requireComplianceCheck && !compliance.passed) {
@@ -71,17 +72,38 @@ async function main(argv = process.argv.slice(2), env = process.env) {
     articlePath: path.resolve(args.articleJson),
   };
 
+  let html = renderWechatHtml(article.markdown);
+
   if (args.mode !== "dry-run") {
-    if (!args.thumbMediaId) {
-      throw new Error("--thumb-media-id is required for draft-only or publish mode");
-    }
     const client = createClientFromEnv(env);
+    const coverPath = args.coverPath || article.coverPath;
+    let thumbMediaId = args.thumbMediaId;
+    if (!thumbMediaId && coverPath) {
+      const cover = await client.uploadPermanentImage(coverPath);
+      thumbMediaId = cover.media_id;
+      record.coverMediaId = cover.media_id;
+    }
+    if (!thumbMediaId) {
+      throw new Error("--thumb-media-id or --cover-path/article.coverPath is required for draft-only or publish mode");
+    }
+    const imageUrls = {};
+    for (const image of article.contentImages) {
+      const uploaded = await client.uploadArticleImage(image.path);
+      imageUrls[image.key] = {
+        url: uploaded.url,
+        alt: image.alt,
+      };
+    }
+    if (Object.keys(imageUrls).length) {
+      record.contentImages = Object.entries(imageUrls).map(([key, value]) => ({ key, url: value.url }));
+      html = renderWechatHtml(article.markdown, { imageUrls });
+    }
     const draft = await client.addDraft([{
       title: article.title,
       author: article.author || profile.defaultAuthor,
       digest: article.digest,
       content: html,
-      thumb_media_id: args.thumbMediaId,
+      thumb_media_id: thumbMediaId,
       need_open_comment: 0,
       only_fans_can_comment: 0,
     }]);

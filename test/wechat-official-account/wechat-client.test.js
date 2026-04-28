@@ -42,6 +42,56 @@ test("addDraft posts article payload", async () => {
   assert.equal(JSON.parse(seen[1].options.body).articles[0].title, "标题");
 });
 
+test("uploadArticleImage posts multipart image payload", async () => {
+  const seen = [];
+  const client = new WeChatMpClient({
+    appId: "app",
+    appSecret: "secret",
+    fetchImpl: async (url, options) => {
+      seen.push({ url, options });
+      if (url.includes("/cgi-bin/token")) {
+        return jsonResponse({ access_token: "token-1", expires_in: 7200 });
+      }
+      return jsonResponse({ url: "https://mmbiz.qpic.cn/uploaded.jpg" });
+    },
+  });
+
+  const result = await client.uploadArticleImage(Buffer.from("image-bytes"), {
+    filename: "look.png",
+    contentType: "image/png",
+  });
+
+  assert.equal(result.url, "https://mmbiz.qpic.cn/uploaded.jpg");
+  assert.match(seen[1].url, /media\/uploadimg/);
+  assert.equal(seen[1].options.method, "POST");
+  assert.ok(seen[1].options.body instanceof FormData);
+});
+
+test("uploadPermanentImage posts material image payload", async () => {
+  const seen = [];
+  const client = new WeChatMpClient({
+    appId: "app",
+    appSecret: "secret",
+    fetchImpl: async (url, options) => {
+      seen.push({ url, options });
+      if (url.includes("/cgi-bin/token")) {
+        return jsonResponse({ access_token: "token-1", expires_in: 7200 });
+      }
+      return jsonResponse({ media_id: "new-cover-media-id", url: "https://mmbiz.qpic.cn/cover.jpg" });
+    },
+  });
+
+  const result = await client.uploadPermanentImage(Buffer.from("image-bytes"), {
+    filename: "cover.jpg",
+    contentType: "image/jpeg",
+  });
+
+  assert.equal(result.media_id, "new-cover-media-id");
+  assert.match(seen[1].url, /material\/add_material/);
+  assert.match(seen[1].url, /type=image/);
+  assert.ok(seen[1].options.body instanceof FormData);
+});
+
 test("wechat API error throws useful error", async () => {
   const client = new WeChatMpClient({
     appId: "app",
