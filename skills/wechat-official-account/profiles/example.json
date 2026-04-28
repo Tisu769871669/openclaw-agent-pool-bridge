@@ -1,0 +1,19 @@
+{
+  "id": "example",
+  "subject": "示例主体",
+  "officialAccount": "示例公众号",
+  "direction": ["行业内容"],
+  "defaultAuthor": "示例作者",
+  "defaultTheme": "general",
+  "publishPolicy": {
+    "defaultMode": "dry-run",
+    "requireManualConfirmation": true,
+    "requireComplianceCheck": true,
+    "maxAutoPublishPerDay": 1
+  },
+  "contentRules": {
+    "voice": "清楚、可信、不过度承诺",
+    "avoid": ["保证收益", "保证有效", "绝对安全"]
+  },
+  "sourcePreferences": ["用户提供资料", "已确认知识库"]
+}
