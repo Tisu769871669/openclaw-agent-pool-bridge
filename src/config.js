@@ -74,6 +74,9 @@ function loadConfig(env = process.env, baseDir = process.cwd()) {
     soulDistillerTimeoutSeconds: Number(env.SOUL_DISTILLER_TIMEOUT_SECONDS || 120),
     sessionStoreDir: resolvePath(env.SESSION_STORE_DIR || ".sessions", baseDir),
     sessionHistoryLimit: Number(env.SESSION_HISTORY_LIMIT || 20),
+    openclawConfigPath: cleanText(env.OPENCLAW_CONFIG_PATH || agentPoolConfig.openclawConfigPath)
+      ? resolvePath(cleanText(env.OPENCLAW_CONFIG_PATH || agentPoolConfig.openclawConfigPath), baseDir)
+      : "",
     agents: normalizedAgentConfig.agents,
     agentTemplates: normalizedAgentConfig.agentTemplates,
   };
@@ -111,7 +114,7 @@ function normalizeAgentConfig(rawAgents, baseDir) {
           : "";
         const workerWorkspaces = resolveWorkerWorkspaces(definition, workers, workerWorkspaceRoot, baseDir);
 
-        agentTemplates[logicalAgentId] = {
+        const agentTemplate = {
           logicalAgentId,
           sourceWorkspace,
           templateWorkspace,
@@ -119,6 +122,10 @@ function normalizeAgentConfig(rawAgents, baseDir) {
           workers,
           workerWorkspaces,
         };
+        if (definition.openclawConfigPath) {
+          agentTemplate.openclawConfigPath = resolvePath(String(definition.openclawConfigPath), baseDir);
+        }
+        agentTemplates[logicalAgentId] = agentTemplate;
       }
     }
   }

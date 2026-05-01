@@ -94,3 +94,45 @@ test("syncWorkerWorkspaces dry-run reports changes without touching worker files
   assert.equal(read(path.join(dir, "workers", "main-1", "SOUL.md")), "old soul");
   assert.ok(result.operations.some((operation) => operation.type === "copy"));
 });
+
+test("syncWorkerWorkspaces syncs worker agent models from the logical agent", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const openclawDir = path.join(dir, ".openclaw");
+  write(path.join(openclawDir, "workspace-main", "SOUL.md"), "source soul");
+  write(path.join(dir, "templates", "main", "SOUL.md"), "template soul");
+  fs.mkdirSync(path.join(dir, "workers", "main-1"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "workers", "main-2"), { recursive: true });
+  write(
+    path.join(openclawDir, "openclaw.json"),
+    JSON.stringify({
+      agents: {
+        list: [
+          { id: "main", model: "volcengine-plan/doubao-seed-2.0-lite" },
+          { id: "main-1", model: "minimax/MiniMax-M2.5" },
+          { id: "main-2", model: "minimax/MiniMax-M2.5" },
+        ],
+      },
+    })
+  );
+  write(
+    path.join(dir, "agent-pool.config.json"),
+    JSON.stringify({
+      agents: {
+        main: {
+          sourceWorkspace: ".openclaw/workspace-main",
+          templateWorkspace: "templates/main",
+          workerWorkspaceRoot: "workers",
+          workers: ["main-1", "main-2"],
+        },
+      },
+    })
+  );
+
+  const config = loadConfig({ AGENT_POOL_CONFIG: "agent-pool.config.json" }, dir);
+  const result = syncWorkerWorkspaces(config, "main");
+  const openclawConfig = JSON.parse(read(path.join(openclawDir, "openclaw.json")));
+
+  assert.equal(openclawConfig.agents.list.find((agent) => agent.id === "main-1").model, "volcengine-plan/doubao-seed-2.0-lite");
+  assert.equal(openclawConfig.agents.list.find((agent) => agent.id === "main-2").model, "volcengine-plan/doubao-seed-2.0-lite");
+  assert.ok(result.operations.some((operation) => operation.type === "sync-model" && operation.worker === "main-1"));
+});

@@ -38,6 +38,12 @@ function syncWorkerWorkspaces(config, logicalAgentId, options = {}) {
     });
   }
 
+  syncWorkerAgentModels(config, template, agentId, {
+    dryRun: Boolean(options.dryRun),
+    operations,
+    openclawConfigPath: options.openclawConfigPath,
+  });
+
   return {
     logicalAgentId: agentId,
     templateWorkspace: template.templateWorkspace,
@@ -125,6 +131,98 @@ function isExcluded(name, fullPath) {
   return normalized.includes("/.git/") || normalized.includes("/.sessions/");
 }
 
+function syncWorkerAgentModels(config, template, logicalAgentId, options = {}) {
+  const openclawConfigPath = resolveOpenClawConfigPath(config, template, options);
+  if (!openclawConfigPath || !fs.existsSync(openclawConfigPath)) {
+    return [];
+  }
+
+  const openclawConfig = JSON.parse(fs.readFileSync(openclawConfigPath, "utf8"));
+  const agentList = openclawConfig?.agents?.list;
+  if (!Array.isArray(agentList)) {
+    return [];
+  }
+
+  const logicalAgent = agentList.find((agent) => agent?.id === logicalAgentId);
+  const logicalModel = cleanText(logicalAgent?.model);
+  if (!logicalModel) {
+    return [];
+  }
+
+  const modelOperations = [];
+  for (const worker of template.workers || []) {
+    const workerAgent = agentList.find((agent) => agent?.id === worker);
+    if (!workerAgent || workerAgent.model === logicalModel) {
+      continue;
+    }
+
+    const operation = {
+      type: "sync-model",
+      openclawConfigPath,
+      logicalAgentId,
+      worker,
+      from: workerAgent.model || "",
+      to: logicalModel,
+    };
+    options.operations?.push(operation);
+    modelOperations.push(operation);
+    if (!options.dryRun) {
+      workerAgent.model = logicalModel;
+    }
+  }
+
+  if (modelOperations.length && !options.dryRun) {
+    fs.writeFileSync(openclawConfigPath, `${JSON.stringify(openclawConfig, null, 2)}\n`, "utf8");
+  }
+
+  return modelOperations;
+}
+
+function resolveOpenClawConfigPath(config, template, options = {}) {
+  const explicit = cleanText(options.openclawConfigPath || template.openclawConfigPath || config.openclawConfigPath);
+  if (explicit) {
+    return explicit;
+  }
+
+  const candidatePaths = [
+    template.sourceWorkspace,
+    template.templateWorkspace,
+    template.workerWorkspaceRoot,
+    ...Object.values(template.workerWorkspaces || {}),
+  ].filter(Boolean);
+
+  for (const candidatePath of candidatePaths) {
+    const openclawDir = inferOpenClawDir(candidatePath);
+    if (!openclawDir) {
+      continue;
+    }
+    const openclawConfigPath = path.join(openclawDir, "openclaw.json");
+    if (fs.existsSync(openclawConfigPath)) {
+      return openclawConfigPath;
+    }
+  }
+
+  return "";
+}
+
+function inferOpenClawDir(candidatePath) {
+  const normalized = path.resolve(candidatePath);
+  const parts = normalized.split(path.sep);
+  const index = parts.lastIndexOf(".openclaw");
+  if (index === -1) {
+    return "";
+  }
+  const prefix = parts.slice(0, index + 1).join(path.sep);
+  if (prefix) {
+    return prefix;
+  }
+  return `${path.sep}.openclaw`;
+}
+
+function cleanText(value) {
+  return String(value || "").trim();
+}
+
 function parseArgs(argv) {
   const out = { _: [] };
   for (let index = 0; index < argv.length; index += 1) {
@@ -162,6 +260,10 @@ function main() {
       console.log(`${args["dry-run"] ? "would copy" : "copied"} ${operation.source} -> ${operation.target}`);
     } else if (operation.type === "remove") {
       console.log(`${args["dry-run"] ? "would remove" : "removed"} ${operation.target}`);
+    } else if (operation.type === "sync-model") {
+      console.log(
+        `${args["dry-run"] ? "would sync" : "synced"} model ${operation.worker}: ${operation.from || "(empty)"} -> ${operation.to}`
+      );
     }
   }
   console.log(
@@ -179,7 +281,10 @@ if (require.main === module) {
 }
 
 module.exports = {
+  inferOpenClawDir,
   isExcluded,
   parseArgs,
+  resolveOpenClawConfigPath,
+  syncWorkerAgentModels,
   syncWorkerWorkspaces,
 };
