@@ -5,7 +5,8 @@ const DEFAULT_BODY_LIMIT_BYTES = 5 * 1024 * 1024;
 async function readParsedBody(req, options = {}) {
   const limitBytes = Number(options.limitBytes || DEFAULT_BODY_LIMIT_BYTES);
   const raw = await readRawBody(req, limitBytes);
-  const contentType = String(req.headers["content-type"] || "").toLowerCase();
+  const rawContentType = String(req.headers["content-type"] || "");
+  const contentType = rawContentType.toLowerCase();
 
   if (!raw.length) {
     return { type: "empty", body: {}, fields: {}, files: [] };
@@ -20,7 +21,7 @@ async function readParsedBody(req, options = {}) {
   }
 
   if (contentType.includes("multipart/form-data")) {
-    const boundary = parseMultipartBoundary(contentType);
+    const boundary = parseMultipartBoundary(rawContentType);
     if (!boundary) {
       throw createApiError(400, "invalid_request", "multipart boundary is required");
     }

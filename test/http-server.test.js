@@ -727,6 +727,68 @@ test("HTTP server overwrites SOUL.md and syncs it to worker workspaces", async (
   }
 });
 
+test("HTTP server accepts multipart SOUL.md uploads with mixed-case boundary", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const sourceWorkspace = path.join(dir, "source", "main");
+  const templateWorkspace = path.join(dir, "templates", "main");
+  fs.mkdirSync(sourceWorkspace, { recursive: true });
+  fs.mkdirSync(templateWorkspace, { recursive: true });
+  fs.writeFileSync(path.join(sourceWorkspace, "SOUL.md"), "old source soul", "utf8");
+
+  const server = createApp({
+    token: "secret",
+    defaultAgentId: "main",
+    agentTemplates: {
+      main: {
+        logicalAgentId: "main",
+        sourceWorkspace,
+        templateWorkspace,
+        workers: [],
+        workerWorkspaces: {},
+      },
+    },
+    pool: new AgentPool({
+      defaultAgentId: "main",
+      queueTimeoutMs: 200,
+      stickyTtlMs: 1000,
+      agents: { main: ["main-1"] },
+    }),
+    queues: new ConversationQueueManager(),
+    sessionStore: new SessionStore({ dir: path.join(dir, "sessions"), historyLimit: 20 }),
+    runner: async () => ({ reply: "ok" }),
+  });
+
+  const port = await listen(server);
+  const boundary = "AaB03xYz";
+  const body = [
+    `--${boundary}`,
+    'Content-Disposition: form-data; name="soulFile"; filename="SOUL.md"',
+    "Content-Type: text/markdown",
+    "",
+    "# SOUL\n\nmultipart 客服人格",
+    `--${boundary}--`,
+    "",
+  ].join("\r\n");
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/agents/main/soul`, {
+      method: "PUT",
+      headers: {
+        Authorization: "Bearer secret",
+        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+      },
+      body,
+    });
+
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.ok, true);
+    assert.equal(fs.readFileSync(path.join(sourceWorkspace, "SOUL.md"), "utf8"), "# SOUL\n\nmultipart 客服人格");
+  } finally {
+    await close(server);
+  }
+});
+
 test("HTTP server distills uploaded chat history into SOUL.md", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
   const sourceWorkspace = path.join(dir, "source", "main");
