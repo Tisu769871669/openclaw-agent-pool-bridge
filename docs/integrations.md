@@ -211,7 +211,7 @@ PUT /api/agents/:agentId/soul
 POST /api/agents/:agentId/soul/distill
 ```
 
-中文说明：`GET` 用来查看 logical agent 源 workspace 的 `SOUL.md`；`PUT` 支持 JSON、`text/plain` 或 multipart 文件上传覆盖源 `SOUL.md`；`distill` 支持上传聊天记录文件，让通用 `customer-soul-distiller` skill 先蒸馏，再覆盖对应 agent 的源 `SOUL.md`。
+中文说明：`GET` 用来查看 logical agent 源 workspace 的 `SOUL.md`；`PUT` 支持 JSON、`text/plain` 或 multipart 文件上传覆盖源 `SOUL.md`；`distill` 支持上传聊天记录文件，让 GitHub 上的同事.skill / dot-skill 先蒸馏，再覆盖对应 agent 的源 `SOUL.md`。
 
 The write path updates:
 
@@ -227,10 +227,13 @@ Distillation setup:
 
 ```env
 SOUL_DISTILLER_AGENT_ID=soul-distiller
-SOUL_DISTILLER_SKILL_DIR=skills/customer-soul-distiller
-SOUL_DISTILLER_SKILL_SOURCE_URL=https://raw.githubusercontent.com/<org>/<repo>/<branch>/<path>/SKILL.md
+SOUL_DISTILLER_SKILL_DIR=skills/dot-skill
+SOUL_DISTILLER_SKILL_REPO=https://github.com/titanwings/colleague-skill.git
+SOUL_DISTILLER_SKILL_SOURCE_URL=
 SOUL_DISTILLER_TIMEOUT_SECONDS=120
 ```
+
+`SOUL_DISTILLER_SKILL_SOURCE_URL` is only a raw `SKILL.md` fallback. Normal installs should clone the full repo so the bridge can read both `SKILL.md` and the colleague prompt files under `prompts/`.
 
 中文判断：聊天记录里出现的订单号、手机号、wxid、当前价格、库存、活动时间等不应该被写进 `SOUL.md`。这些内容属于短期会话、FAQ/RAG 或实时业务 API；`SOUL.md` 只保留长期的人格、边界和服务方式。
 

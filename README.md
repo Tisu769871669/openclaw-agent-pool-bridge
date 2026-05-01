@@ -235,7 +235,7 @@ The response intentionally does not expose `worker_agent_id`.
 
 These endpoints require the same `Authorization: Bearer <token>` header as chat/admin requests when `AGENT_BRIDGE_TOKEN` is configured.
 
-中文说明：这组接口的修改对象是 logical agent 的源 workspace，也就是 `agent-pool.config.json` 里的 `sourceWorkspace`。写入后会把这份 `SOUL.md` 同步到 template workspace 和该 agent 的 worker workspace。它不会把每个客服都做成一份特化 skill；聊天记录蒸馏使用仓库里的通用 `skills/customer-soul-distiller`，如果服务端缺少该 skill，可通过 `SOUL_DISTILLER_SKILL_SOURCE_URL` 指向同事 GitHub raw `SKILL.md` 自动拉取。
+中文说明：这组接口的修改对象是 logical agent 的源 workspace，也就是 `agent-pool.config.json` 里的 `sourceWorkspace`。写入后会把这份 `SOUL.md` 同步到 template workspace 和该 agent 的 worker workspace。它不会把每个客服都做成一份特化 skill；聊天记录蒸馏默认使用 GitHub 上的同事.skill / dot-skill：`titanwings/colleague-skill`，并安装到 `skills/dot-skill`。
 
 Read the current SOUL:
 
@@ -318,7 +318,14 @@ Response shape:
 
 Use `?syncWorkers=false` or JSON field `"syncWorkers": false` only when you intentionally want to update the logical agent source first and sync template/workers later.
 
-Distillation requires `SOUL_DISTILLER_AGENT_ID` to point to an OpenClaw agent that can run the common distiller prompt. The bundled skill defaults to `skills/customer-soul-distiller`; set `SOUL_DISTILLER_SKILL_SOURCE_URL=https://raw.githubusercontent.com/<org>/<repo>/<branch>/<path>/SKILL.md` when the server should auto-install a missing colleague skill from GitHub.
+Distillation requires `SOUL_DISTILLER_AGENT_ID` to point to an OpenClaw agent that can run the common distiller prompt. The default skill source is the popular open-source colleague skill repo:
+
+```env
+SOUL_DISTILLER_SKILL_DIR=skills/dot-skill
+SOUL_DISTILLER_SKILL_REPO=https://github.com/titanwings/colleague-skill.git
+```
+
+When `skills/dot-skill/SKILL.md` is missing, the bridge runs `git clone --depth 1` for that repo. `SOUL_DISTILLER_SKILL_SOURCE_URL` is only a raw `SKILL.md` fallback for restricted environments where `git clone` is unavailable.
 
 ## Pool Configuration
 

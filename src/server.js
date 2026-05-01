@@ -39,6 +39,7 @@ server.listen(config.port, () => {
         bodyLimitBytes: config.soulAdminBodyLimitBytes,
         distillerAgentId: config.soulDistillerAgentId,
         distillerSkillDir: config.soulDistillerSkillDir,
+        distillerSkillRepo: config.soulDistillerSkillRepo,
       },
     })
   );

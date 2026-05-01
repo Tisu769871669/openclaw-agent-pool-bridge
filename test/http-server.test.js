@@ -756,7 +756,7 @@ test("HTTP server distills uploaded chat history into SOUL.md", async () => {
         distillerCalls.push(input);
         return {
           content: "# SOUL\n\n蒸馏后的客服人格",
-          skill: { name: "customer-soul-distiller", path: path.join(dir, "skills", "customer-soul-distiller") },
+          skill: { name: "dot-skill", path: path.join(dir, "skills", "dot-skill") },
         };
       },
     },
@@ -785,7 +785,7 @@ test("HTTP server distills uploaded chat history into SOUL.md", async () => {
     assert.equal(response.status, 200);
     const payload = await response.json();
     assert.equal(payload.ok, true);
-    assert.equal(payload.distillation.skill.name, "customer-soul-distiller");
+    assert.equal(payload.distillation.skill.name, "dot-skill");
     assert.equal(distillerCalls.length, 1);
     assert.equal(distillerCalls[0].logicalAgentId, "main");
     assert.equal(distillerCalls[0].currentSoul, "# SOUL\n\n原有人格");

@@ -5,40 +5,69 @@ const os = require("node:os");
 const path = require("node:path");
 
 const {
+  DEFAULT_SKILL_REPO,
   buildSoulDistillationPrompt,
   createSoulDistiller,
   ensureSoulDistillerSkill,
+  loadDotSkillContext,
   sanitizeDistilledSoul,
 } = require("../src/soul-distiller");
 
-test("ensureSoulDistillerSkill downloads missing skill into the shared skill directory", async () => {
+test("ensureSoulDistillerSkill clones titanwings dot-skill into the shared skill directory", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-soul-skill-"));
-  const skillDir = path.join(dir, "customer-soul-distiller");
+  const skillDir = path.join(dir, "dot-skill");
   const calls = [];
 
   const skill = await ensureSoulDistillerSkill({
     skillDir,
-    sourceUrl: "https://raw.githubusercontent.test/colleague/SKILL.md",
+    repoUrl: DEFAULT_SKILL_REPO,
+    spawnSyncImpl: (command, args) => {
+      calls.push([command, ...args]);
+      fs.mkdirSync(path.join(skillDir, "prompts"), { recursive: true });
+      fs.writeFileSync(path.join(skillDir, "SKILL.md"), "# dot-skill\n\n同事.skill 主入口", "utf8");
+      fs.writeFileSync(path.join(skillDir, "prompts", "work_analyzer.md"), "# Work Analyzer\n\n提取工作方式", "utf8");
+      return { status: 0, stdout: "", stderr: "" };
+    },
+  });
+
+  assert.deepEqual(calls, [["git", "clone", "--depth", "1", DEFAULT_SKILL_REPO, skillDir]]);
+  assert.equal(skill.installed, true);
+  assert.equal(skill.path, skillDir);
+  assert.match(skill.content, /同事\.skill 主入口/);
+  assert.match(skill.content, /提取工作方式/);
+  assert.equal(fs.readFileSync(path.join(skillDir, "SKILL.md"), "utf8"), "# dot-skill\n\n同事.skill 主入口");
+});
+
+test("ensureSoulDistillerSkill can fall back to raw SKILL.md when clone fails", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-soul-skill-"));
+  const skillDir = path.join(dir, "dot-skill");
+  const fetchCalls = [];
+
+  const skill = await ensureSoulDistillerSkill({
+    skillDir,
+    repoUrl: "https://github.invalid/titanwings/colleague-skill.git",
+    sourceUrl: "https://raw.githubusercontent.test/titanwings/colleague-skill/SKILL.md",
+    spawnSyncImpl: () => ({ status: 1, stdout: "", stderr: "network down" }),
     fetchImpl: async (url) => {
-      calls.push(url);
+      fetchCalls.push(url);
       return {
         ok: true,
-        text: async () => "# Colleague Skill\n\nOnly output SOUL.md.",
+        text: async () => "# dot-skill\n\nfallback 同事.skill",
       };
     },
   });
 
-  assert.deepEqual(calls, ["https://raw.githubusercontent.test/colleague/SKILL.md"]);
+  assert.deepEqual(fetchCalls, ["https://raw.githubusercontent.test/titanwings/colleague-skill/SKILL.md"]);
   assert.equal(skill.installed, true);
-  assert.equal(skill.path, skillDir);
-  assert.equal(fs.readFileSync(path.join(skillDir, "SKILL.md"), "utf8"), "# Colleague Skill\n\nOnly output SOUL.md.");
+  assert.match(skill.content, /fallback 同事\.skill/);
 });
 
 test("SoulDistiller uses shared skill instructions and strips markdown fences", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-soul-skill-"));
-  const skillDir = path.join(dir, "customer-soul-distiller");
-  fs.mkdirSync(skillDir, { recursive: true });
-  fs.writeFileSync(path.join(skillDir, "SKILL.md"), "# Skill\n\nKeep long-lived style only.", "utf8");
+  const skillDir = path.join(dir, "dot-skill");
+  fs.mkdirSync(path.join(skillDir, "prompts"), { recursive: true });
+  fs.writeFileSync(path.join(skillDir, "SKILL.md"), "# dot-skill\n\nKeep long-lived style only.", "utf8");
+  fs.writeFileSync(path.join(skillDir, "prompts", "persona_analyzer.md"), "# Persona\n\n分析表达 DNA", "utf8");
 
   const prompts = [];
   const distiller = createSoulDistiller({
@@ -59,9 +88,24 @@ test("SoulDistiller uses shared skill instructions and strips markdown fences", 
   });
 
   assert.equal(result.content, "# SOUL\n\n蒸馏后内容");
-  assert.equal(result.skill.name, "customer-soul-distiller");
+  assert.equal(result.skill.name, "dot-skill");
   assert.match(prompts[0], /Keep long-lived style only/);
+  assert.match(prompts[0], /分析表达 DNA/);
   assert.match(prompts[0], /您好，有什么可以帮助/);
+});
+
+test("loadDotSkillContext reads root skill and relevant dot-skill prompts", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-soul-skill-"));
+  fs.mkdirSync(path.join(dir, "prompts"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "SKILL.md"), "# dot-skill", "utf8");
+  fs.writeFileSync(path.join(dir, "prompts", "work_builder.md"), "# Work Builder", "utf8");
+
+  const content = loadDotSkillContext(dir);
+
+  assert.match(content, /--- SKILL\.md ---/);
+  assert.match(content, /# dot-skill/);
+  assert.match(content, /--- prompts\/work_builder\.md ---/);
+  assert.match(content, /# Work Builder/);
 });
 
 test("buildSoulDistillationPrompt keeps volatile facts out of SOUL instructions", () => {

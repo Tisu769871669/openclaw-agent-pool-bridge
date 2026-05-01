@@ -51,6 +51,7 @@ function createServerFromConfig(config) {
     agentId: config.soulDistillerAgentId,
     timeoutSeconds: config.soulDistillerTimeoutSeconds,
     skillDir: config.soulDistillerSkillDir,
+    skillRepo: config.soulDistillerSkillRepo,
     skillSourceUrl: config.soulDistillerSkillSourceUrl,
   });
   const runner = (input) =>

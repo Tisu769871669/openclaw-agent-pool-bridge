@@ -142,7 +142,7 @@ flowchart LR
 | `SessionStore` | Stores recent bridge-owned history so a conversation can move between workers safely. |
 | `OpenClawRunner` | Starts exactly one `openclaw agent` child process for one worker run and preserves rich output payloads when OpenClaw returns them. |
 | `SoulManager` | Reads and overwrites each logical agent source `SOUL.md`, then syncs that file to the template and configured worker workspaces. |
-| `SoulDistiller` | Uses a shared customer SOUL distillation skill plus an OpenClaw distiller agent to turn uploaded chat logs into a complete `SOUL.md`. |
+| `SoulDistiller` | Uses the shared `titanwings/colleague-skill` dot-skill repo plus an OpenClaw distiller agent to turn uploaded chat logs into a complete `SOUL.md`. |
 | `agents-pool sync` | Copies one canonical logical-agent source workspace into its template and worker workspaces before serving traffic. |
 
 中文补充：

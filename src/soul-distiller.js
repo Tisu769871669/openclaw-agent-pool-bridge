@@ -1,11 +1,23 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 
 const { createApiError } = require("./errors");
 const { runOpenClawAgent } = require("./openclaw-runner");
 
+const DEFAULT_SKILL_REPO = "https://github.com/titanwings/colleague-skill.git";
 const DEFAULT_SKILL_SOURCE_URL =
-  "https://raw.githubusercontent.com/openclaw/skills/HEAD/skills/kesslerio/soulcraft/SKILL.md";
+  "https://raw.githubusercontent.com/titanwings/colleague-skill/HEAD/SKILL.md";
+
+const DOT_SKILL_CONTEXT_FILES = [
+  "SKILL.md",
+  path.join("prompts", "intake.md"),
+  path.join("prompts", "work_analyzer.md"),
+  path.join("prompts", "persona_analyzer.md"),
+  path.join("prompts", "work_builder.md"),
+  path.join("prompts", "persona_builder.md"),
+  path.join("prompts", "merger.md"),
+];
 
 class SoulDistiller {
   constructor(options = {}) {
@@ -13,8 +25,10 @@ class SoulDistiller {
     this.agentId = String(options.agentId || "").trim();
     this.timeoutSeconds = Number(options.timeoutSeconds || 120);
     this.skillDir = options.skillDir || "";
-    this.skillSourceUrl = options.skillSourceUrl || DEFAULT_SKILL_SOURCE_URL;
+    this.skillRepo = options.skillRepo || DEFAULT_SKILL_REPO;
+    this.skillSourceUrl = options.skillSourceUrl || "";
     this.fetchImpl = options.fetchImpl || globalThis.fetch;
+    this.spawnSyncImpl = options.spawnSyncImpl || spawnSync;
     this.runAgent = options.runAgent || defaultRunAgent;
   }
 
@@ -25,8 +39,10 @@ class SoulDistiller {
 
     const skill = await ensureSoulDistillerSkill({
       skillDir: this.skillDir,
+      repoUrl: this.skillRepo,
       sourceUrl: this.skillSourceUrl,
       fetchImpl: this.fetchImpl,
+      spawnSyncImpl: this.spawnSyncImpl,
     });
     const prompt = buildSoulDistillationPrompt({
       ...input,
@@ -44,10 +60,11 @@ class SoulDistiller {
     return {
       content,
       skill: {
-        name: path.basename(skill.path || this.skillDir || "customer-soul-distiller"),
+        name: path.basename(skill.path || this.skillDir || "dot-skill"),
         path: skill.path,
         file: skill.file,
         installed: skill.installed,
+        sourceRepo: skill.sourceRepo,
         sourceUrl: skill.sourceUrl,
       },
       raw: result.raw,
@@ -72,7 +89,7 @@ async function defaultRunAgent(options) {
 async function ensureSoulDistillerSkill(options = {}) {
   const skillDir = options.skillDir ? path.resolve(options.skillDir) : "";
   if (!skillDir) {
-    return { path: "", file: "", content: "", installed: false, sourceUrl: "" };
+    return { path: "", file: "", content: "", installed: false, sourceRepo: "", sourceUrl: "" };
   }
 
   const skillFile = path.join(skillDir, "SKILL.md");
@@ -80,14 +97,40 @@ async function ensureSoulDistillerSkill(options = {}) {
     return {
       path: skillDir,
       file: skillFile,
-      content: fs.readFileSync(skillFile, "utf8"),
+      content: loadDotSkillContext(skillDir),
       installed: false,
+      sourceRepo: options.repoUrl || "",
       sourceUrl: options.sourceUrl || "",
     };
   }
 
+  if (options.repoUrl) {
+    const cloned = cloneSkillRepo({
+      repoUrl: options.repoUrl,
+      skillDir,
+      spawnSyncImpl: options.spawnSyncImpl || spawnSync,
+    });
+    if (cloned.ok && fs.existsSync(skillFile)) {
+      return {
+        path: skillDir,
+        file: skillFile,
+        content: loadDotSkillContext(skillDir),
+        installed: true,
+        sourceRepo: options.repoUrl,
+        sourceUrl: options.sourceUrl || "",
+      };
+    }
+    if (!options.sourceUrl) {
+      throw createApiError(
+        503,
+        "soul_distiller_skill_install_failed",
+        `Failed to clone soul distiller skill from ${options.repoUrl}: ${cloned.error}`
+      );
+    }
+  }
+
   if (!options.sourceUrl) {
-    throw createApiError(503, "soul_distiller_skill_missing", `Missing soul distiller skill: ${skillFile}`);
+    throw createApiError(503, "soul_distiller_skill_missing", `Missing dot-skill directory: ${skillDir}`);
   }
   if (!options.fetchImpl) {
     throw createApiError(503, "soul_distiller_skill_missing", "fetch is unavailable for installing soul distiller skill");
@@ -112,16 +155,51 @@ async function ensureSoulDistillerSkill(options = {}) {
   return {
     path: skillDir,
     file: skillFile,
-    content,
+    content: loadDotSkillContext(skillDir),
     installed: true,
+    sourceRepo: options.repoUrl || "",
     sourceUrl: options.sourceUrl,
   };
+}
+
+function cloneSkillRepo(options = {}) {
+  fs.mkdirSync(path.dirname(options.skillDir), { recursive: true });
+  const result = options.spawnSyncImpl("git", ["clone", "--depth", "1", options.repoUrl, options.skillDir], {
+    encoding: "utf8",
+    windowsHide: true,
+  });
+  if (result.error) {
+    return { ok: false, error: result.error.message };
+  }
+  if (result.status !== 0) {
+    return { ok: false, error: String(result.stderr || result.stdout || `exit ${result.status}`).trim() };
+  }
+  return { ok: true, error: "" };
+}
+
+function loadDotSkillContext(skillDir) {
+  const sections = [];
+  for (const relativePath of DOT_SKILL_CONTEXT_FILES) {
+    const filePath = path.join(skillDir, relativePath);
+    if (!fs.existsSync(filePath)) {
+      continue;
+    }
+    const content = fs.readFileSync(filePath, "utf8").trim();
+    if (!content) {
+      continue;
+    }
+    sections.push([
+      `--- ${relativePath.replace(/\\/g, "/")} ---`,
+      content,
+    ].join("\n"));
+  }
+  return sections.join("\n\n");
 }
 
 function buildSoulDistillationPrompt(input = {}) {
   return [
     "你正在为 OpenClaw 通用客服 agent 蒸馏 SOUL.md。",
-    "请使用下方通用 skill 指令，把聊天记录中的稳定服务风格、身份边界、话术习惯、工作方式和需要长期保留的人格规则提炼为完整的 SOUL.md。",
+    "请使用下方 dot-skill / 同事.skill 指令，把聊天记录中的稳定服务风格、身份边界、话术习惯、工作方式和需要长期保留的人格规则提炼为完整的 SOUL.md。",
     "重要边界：不要把一次性订单号、手机号、客户隐私、实时价格、库存、活动时间这类事实写入 SOUL.md；这类内容应进入 FAQ/RAG/API。",
     "只输出可直接覆盖 SOUL.md 的 Markdown 正文，不要输出解释、JSON、diff 或代码围栏。",
     "",
@@ -134,7 +212,7 @@ function buildSoulDistillationPrompt(input = {}) {
     "【聊天记录文件名】",
     String(input.filename || "chat-log.txt"),
     "",
-    "【通用 skill 指令】",
+    "【dot-skill / 同事.skill 指令】",
     String(input.skillContent || "(no external skill content loaded)"),
     "",
     "【聊天记录】",
@@ -159,10 +237,14 @@ function sanitizeSessionId(value) {
 }
 
 module.exports = {
+  DEFAULT_SKILL_REPO,
   DEFAULT_SKILL_SOURCE_URL,
+  DOT_SKILL_CONTEXT_FILES,
   SoulDistiller,
   buildSoulDistillationPrompt,
+  cloneSkillRepo,
   createSoulDistiller,
   ensureSoulDistillerSkill,
+  loadDotSkillContext,
   sanitizeDistilledSoul,
 };

@@ -125,7 +125,8 @@ test("loadConfig supports SOUL distillation environment options", () => {
     {
       SOUL_ADMIN_BODY_LIMIT_BYTES: "1024",
       SOUL_DISTILLER_AGENT_ID: "soul-distiller",
-      SOUL_DISTILLER_SKILL_DIR: "skills/shared-soul",
+      SOUL_DISTILLER_SKILL_DIR: "skills/dot-skill",
+      SOUL_DISTILLER_SKILL_REPO: "https://github.com/titanwings/colleague-skill.git",
       SOUL_DISTILLER_SKILL_SOURCE_URL: "https://raw.githubusercontent.test/team/soul/SKILL.md",
       SOUL_DISTILLER_TIMEOUT_SECONDS: "90",
     },
@@ -134,7 +135,8 @@ test("loadConfig supports SOUL distillation environment options", () => {
 
   assert.equal(config.soulAdminBodyLimitBytes, 1024);
   assert.equal(config.soulDistillerAgentId, "soul-distiller");
-  assert.equal(config.soulDistillerSkillDir, path.join(dir, "skills", "shared-soul"));
+  assert.equal(config.soulDistillerSkillDir, path.join(dir, "skills", "dot-skill"));
+  assert.equal(config.soulDistillerSkillRepo, "https://github.com/titanwings/colleague-skill.git");
   assert.equal(config.soulDistillerSkillSourceUrl, "https://raw.githubusercontent.test/team/soul/SKILL.md");
   assert.equal(config.soulDistillerTimeoutSeconds, 90);
 });

@@ -68,7 +68,8 @@ function loadConfig(env = process.env, baseDir = process.cwd()) {
     soulDistillerAgentId: cleanText(env.SOUL_DISTILLER_AGENT_ID),
     soulDistillerSkillDir: cleanText(env.SOUL_DISTILLER_SKILL_DIR)
       ? resolvePath(cleanText(env.SOUL_DISTILLER_SKILL_DIR), baseDir)
-      : path.join(baseDir, "skills", "customer-soul-distiller"),
+      : path.join(baseDir, "skills", "dot-skill"),
+    soulDistillerSkillRepo: cleanText(env.SOUL_DISTILLER_SKILL_REPO),
     soulDistillerSkillSourceUrl: cleanText(env.SOUL_DISTILLER_SKILL_SOURCE_URL),
     soulDistillerTimeoutSeconds: Number(env.SOUL_DISTILLER_TIMEOUT_SECONDS || 120),
     sessionStoreDir: resolvePath(env.SESSION_STORE_DIR || ".sessions", baseDir),
