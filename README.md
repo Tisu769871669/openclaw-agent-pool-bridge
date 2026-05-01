@@ -14,6 +14,9 @@ It keeps the existing `/api/agents/chat` and `/api/agents/:agentId/chat` protoco
 | `docs/architecture.md` | 架构图、请求链路、pool/queue 行为、组件职责。 |
 | `docs/cli.md` | `agents-pool` CLI 的命令、参数、安全规则和示例。 |
 | `docs/integrations.md` | Sudan、TokyoClaw、WeCom 等业务桥接集成方式。 |
+| `docs/aliyun-oss-skill.md` | 通用客服安装阿里云 OSS skill、配置 `openclawlist` bucket、同步 worker 和排查。 |
+| `docs/openclaw-tts.md` | 通用客服配置 OpenClaw 原生 TTS、安装 `edge-tts` skill 和运行态验证。 |
+| `docs/article-image-generator.md` | 通用客服安装 `article-image-generator` / `gpt-image-2` 生图 skill，让所有特化 agent 复用。 |
 | `docs/ops.local.zh-CN.md` | 中文/English-friendly 本地和服务器运维手册，包含状态检查、同步、排障、回滚。 |
 
 ## Why
@@ -59,10 +62,10 @@ node scripts/create-worker-pool.js main \
   --agent-dir-root /root/.openclaw/workers/agents
 ```
 
-Create and maintain one template workspace per logical agent:
+Create and maintain one source workspace per logical agent. Templates and workers are generated from this source:
 
 ```text
-/root/openclaw-agent-templates/main/
+/root/.openclaw/workspace/
   AGENTS.md
   SOUL.md
   IDENTITY.md
@@ -70,10 +73,10 @@ Create and maintain one template workspace per logical agent:
   knowledge/
 ```
 
-Sync template changes into the worker pool:
+Sync source changes into the template and worker pool:
 
 ```bash
-node scripts/sync-worker-workspaces.js main --config agent-pool.config.local.json
+node scripts/agents-pool.js sync main --config agent-pool.config.local.json
 ```
 
 Start the bridge:
@@ -86,7 +89,7 @@ npm start
 
 The `agents-pool` command provides an operator-friendly setup flow on top of the lower-level scripts.
 
-中文说明：`agents-pool` 是运维入口，负责扫描本机 OpenClaw workspace/agent、创建或配置 worker pool、同步模板到 worker、做环境诊断。
+中文说明：`agents-pool` 是运维入口，负责扫描本机 OpenClaw workspace/agent、创建或配置 worker pool、把 logical agent 源 workspace 同步到模板和 worker、做环境诊断。
 
 ```bash
 # Inside a checkout, this always works:
@@ -158,6 +161,43 @@ See `docs/cli.md` for all commands and safety rules.
 }
 ```
 
+Rich chat content is also supported. Emoji stay in the text. Images, files, and audio should be passed as metadata or URLs, not as raw binary in this JSON API.
+
+中文说明：通用 Agent 支持 emoji、图片、文件和语音输入。bridge 不负责上传二进制文件；上游需要先把素材放到业务侧可访问的位置，再把 URL、mediaId、文件名、mimeType、转写文本等传进来。
+
+```json
+{
+  "conversationId": "wxid_customer_001",
+  "userId": "wxid_customer_001",
+  "content": {
+    "text": "看看这个图，可以语音回复吗 😊",
+    "attachments": [
+      {
+        "type": "image",
+        "url": "https://example.com/customer-look.png",
+        "filename": "customer-look.png",
+        "mimeType": "image/png"
+      },
+      {
+        "type": "file",
+        "url": "https://example.com/order.pdf",
+        "filename": "order.pdf",
+        "mimeType": "application/pdf"
+      },
+      {
+        "type": "audio",
+        "url": "https://example.com/customer-voice.mp3",
+        "filename": "customer-voice.mp3",
+        "transcript": "我想听语音回复"
+      }
+    ],
+    "tts": true
+  }
+}
+```
+
+`tts: true` means the caller wants a voice-friendly reply. Actual audio generation still depends on OpenClaw native `messages.tts` or the optional `edge-tts` skill being configured in the agent runtime.
+
 Successful response:
 
 ```json
@@ -172,7 +212,113 @@ Successful response:
 }
 ```
 
+If the agent runtime returns rich payloads, the bridge keeps `reply` as the primary text field and adds optional `outputs`. When TTS was requested, the response also includes `tts.requested`.
+
+```json
+{
+  "ok": true,
+  "reply": "可以，我给您发语音版。",
+  "tts": { "requested": true },
+  "outputs": [
+    {
+      "type": "audio",
+      "url": "https://example.com/reply.mp3",
+      "mime_type": "audio/mpeg"
+    }
+  ]
+}
+```
+
 The response intentionally does not expose `worker_agent_id`.
+
+### SOUL.md Management API
+
+These endpoints require the same `Authorization: Bearer <token>` header as chat/admin requests when `AGENT_BRIDGE_TOKEN` is configured.
+
+中文说明：这组接口的修改对象是 logical agent 的源 workspace，也就是 `agent-pool.config.json` 里的 `sourceWorkspace`。写入后会把这份 `SOUL.md` 同步到 template workspace 和该 agent 的 worker workspace。它不会把每个客服都做成一份特化 skill；聊天记录蒸馏使用仓库里的通用 `skills/customer-soul-distiller`，如果服务端缺少该 skill，可通过 `SOUL_DISTILLER_SKILL_SOURCE_URL` 指向同事 GitHub raw `SKILL.md` 自动拉取。
+
+Read the current SOUL:
+
+```http
+GET /api/agents/:agentId/soul
+```
+
+Overwrite SOUL with JSON:
+
+```bash
+curl -X PUT \
+  -H "Authorization: Bearer $AGENT_BRIDGE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"# SOUL\n\n新的客服人格"}' \
+  http://127.0.0.1:9070/api/agents/snowchuang/soul
+```
+
+You can also upload a Markdown file:
+
+```bash
+curl -X PUT \
+  -H "Authorization: Bearer $AGENT_BRIDGE_TOKEN" \
+  -F "soulFile=@SOUL.md;type=text/markdown" \
+  http://127.0.0.1:9070/api/agents/snowchuang/soul
+```
+
+Distill a chat log file and write the distilled result back to `SOUL.md`:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $AGENT_BRIDGE_TOKEN" \
+  -F "chatFile=@chat-history.txt;type=text/plain" \
+  http://127.0.0.1:9070/api/agents/snowchuang/soul/distill
+```
+
+JSON upload is also supported:
+
+```json
+{
+  "filename": "chat-history.txt",
+  "chatLog": "用户：会员多少钱？\n客服：您好，会员价是 138 元。"
+}
+```
+
+Response shape:
+
+```json
+{
+  "ok": true,
+  "agent_id": "snowchuang",
+  "soul": {
+    "path": "/root/.openclaw/workspace-snowchuang/SOUL.md",
+    "bytes": 1280,
+    "sha256": "...",
+    "source_workspace": "/root/.openclaw/workspace-snowchuang"
+  },
+  "sync": {
+    "sync_workers": true,
+    "source": {
+      "path": "/root/.openclaw/workspace-snowchuang/SOUL.md",
+      "bytes": 1280,
+      "sha256": "..."
+    },
+    "template": {
+      "path": "/root/openclaw-agent-templates/snowchuang/SOUL.md",
+      "bytes": 1280,
+      "sha256": "..."
+    },
+    "workers": [
+      {
+        "worker": "snowchuang-1",
+        "path": "/root/.openclaw/workers/workspace/snowchuang-1/SOUL.md",
+        "bytes": 1280,
+        "sha256": "..."
+      }
+    ]
+  }
+}
+```
+
+Use `?syncWorkers=false` or JSON field `"syncWorkers": false` only when you intentionally want to update the logical agent source first and sync template/workers later.
+
+Distillation requires `SOUL_DISTILLER_AGENT_ID` to point to an OpenClaw agent that can run the common distiller prompt. The bundled skill defaults to `skills/customer-soul-distiller`; set `SOUL_DISTILLER_SKILL_SOURCE_URL=https://raw.githubusercontent.com/<org>/<repo>/<branch>/<path>/SKILL.md` when the server should auto-install a missing colleague skill from GitHub.
 
 ## Pool Configuration
 
@@ -185,11 +331,13 @@ The response intentionally does not expose `worker_agent_id`.
   "defaultAgentId": "main",
   "agents": {
     "main": {
+      "sourceWorkspace": "/root/.openclaw/workspace",
       "templateWorkspace": "/root/openclaw-agent-templates/main",
       "workerWorkspaceRoot": "/root/.openclaw/workers/workspace",
       "workers": ["main-1", "main-2", "main-3", "main-4", "main-5"]
     },
     "snowchuang": {
+      "sourceWorkspace": "/root/.openclaw/workspace-snowchuang",
       "templateWorkspace": "/root/openclaw-agent-templates/snowchuang",
       "workerWorkspaceRoot": "/root/.openclaw/workers/workspace",
       "workers": ["snowchuang-1", "snowchuang-2", "snowchuang-3"]
@@ -208,15 +356,17 @@ The older shorthand still works:
 }
 ```
 
+The shorthand is only for legacy chat routing. SOUL management requires the object form with `sourceWorkspace` configured.
+
 If a logical agent is not configured, the bridge falls back to the default pool.
 
 ## Template Workspaces
 
-Each logical customer service agent should have exactly one canonical template workspace. Edit that template, then sync it to the worker workspaces.
+Each logical customer service agent should have one canonical source workspace and one generated template workspace. Edit the source workspace, then sync it to the template and worker workspaces.
 
-中文说明：每个 logical agent 维护一份标准模板 workspace。不要直接改 worker workspace，worker 是运行副本，应该由模板同步生成。
+中文说明：每个 logical agent 的源 workspace 是权威内容；template 和 worker 都是从源同步出来的运行副本。不要直接改 worker workspace。
 
-The sync script mirrors normal customer-service files and preserves runtime state. It skips:
+The sync flow mirrors normal customer-service files from source to template and workers while preserving runtime state. It skips:
 
 - `.git`
 - `.env` / `.env.local`
@@ -281,7 +431,10 @@ Template variables:
 | `{{conversation_id}}` | Conversation ID from the caller. |
 | `{{user_id}}` | User ID from the caller, if present. |
 | `{{history}}` | Bridge-owned recent history formatted as numbered `user` / `assistant` lines. |
-| `{{message}}` | Current user message after debounce, if enabled. |
+| `{{message}}` | Current user message after debounce, including rich attachment summaries and TTS request notes. |
+| `{{message_text}}` | Current user text only, without attachment or response-option summaries. |
+| `{{attachments}}` | Optional standalone attachment summary block for custom templates. |
+| `{{response_options}}` | Optional standalone response-option block, currently used for TTS requests. |
 | `{{retrieval_context}}` | Reserved for FAQ/RAG retrieval context; currently empty. |
 
 Example:

@@ -53,23 +53,29 @@ agents-pool help
 
 `setup` asks which discovered workspaces should become logical agents, how many workers each pool should use, where templates and worker workspaces should live, and whether to create workers, sync files, and restart a service.
 
-When `agent-pool.config.json` already contains the selected logical agent, `setup` reuses that agent's existing `templateWorkspace`, `workerWorkspaceRoot`, and worker names by default. Passing `--count` regenerates the worker list while keeping the inferred existing worker prefix, and `--worker-prefix` overrides that prefix explicitly.
+When `agent-pool.config.json` already contains the selected logical agent, `setup` reuses that agent's existing `sourceWorkspace`, `templateWorkspace`, `workerWorkspaceRoot`, and worker names by default. Passing `--count` regenerates the worker list while keeping the inferred existing worker prefix, and `--worker-prefix` overrides that prefix explicitly.
 
 中文说明：如果当前服务器已经配置过 `main -> sudan-main-1..5`，再次执行 `agents-pool setup --dry-run` 会默认沿用 `sudan-main-1..5`，不会悄悄改成 `main-1..5`。只有你明确传 `--count` 或 `--worker-prefix`，才会重新规划 worker 名。
 
-`sync` refreshes a logical agent pool:
+`sync` refreshes a logical agent pool. If `sourceWorkspace` is configured, this is enough:
+
+```bash
+agents-pool sync main
+```
+
+You can override the source for one run:
 
 ```bash
 agents-pool sync main --source-workspace /root/.openclaw/workspace
 ```
 
-When `--source-workspace` is provided, the CLI copies:
+When `sourceWorkspace` or `--source-workspace` is available, the CLI copies:
 
 ```text
 source workspace -> template workspace -> worker workspaces
 ```
 
-Without `--source-workspace`, it only copies:
+Without either source value, it only copies:
 
 ```text
 template workspace -> worker workspaces
@@ -152,7 +158,7 @@ If a worker agent already appears in `openclaw agents list` or in the worker age
 
 The CLI refuses to mirror a source workspace into the same path or into obviously unsafe target paths such as the filesystem root or home directory.
 
-中文补充：worker workspace 是运行副本，尽量不要手改。日常维护应改源 workspace 或模板 workspace，再通过 CLI 同步。
+中文补充：worker workspace 是运行副本，尽量不要手改。日常维护应改 logical agent 的源 workspace，再通过 CLI 同步；只有明确知道自己在做 template-only 维护时，才直接改模板。
 
 ## Useful Examples / 常用示例
 
@@ -168,7 +174,14 @@ Configure two logical agents:
 agents-pool setup --agents main,agent1 --count 5
 ```
 
-Refresh `main` from a source workspace:
+Refresh `main` from its configured source workspace:
+
+```bash
+agents-pool sync main --dry-run
+agents-pool sync main
+```
+
+Refresh `main` from an explicit source workspace:
 
 ```bash
 agents-pool sync main --source-workspace /root/.openclaw/workspace --dry-run

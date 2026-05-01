@@ -1,6 +1,7 @@
 const http = require("node:http");
 
 const { createApiError } = require("./errors");
+const { DEFAULT_BODY_LIMIT_BYTES, readParsedBody } = require("./http-body");
 const {
   buildPrompt,
   buildRunSessionId,
@@ -12,6 +13,7 @@ const {
   removeCurrentMessageFromContext,
   validateChatBody,
 } = require("./message");
+const { createSoulManager } = require("./soul-manager");
 
 function createApp(options = {}) {
   const token = String(options.token || "").trim();
@@ -23,6 +25,12 @@ function createApp(options = {}) {
   const retrievalAdapter = options.retrievalAdapter;
   const sessionStore = options.sessionStore;
   const runner = options.runner;
+  const soulManager = options.soulManager || createSoulManager({
+    defaultAgentId,
+    agentTemplates: options.agentTemplates || {},
+  });
+  const soulDistiller = options.soulDistiller;
+  const bodyLimitBytes = Number(options.bodyLimitBytes || DEFAULT_BODY_LIMIT_BYTES);
 
   return http.createServer(async (req, res) => {
     const traceId = buildTraceId();
@@ -58,6 +66,48 @@ function createApp(options = {}) {
           200,
           renderPoolAdminStatus({ defaultAgentId, pool, queues, debounce, promptAdapter, retrievalAdapter })
         );
+      }
+
+      if (route.type === "soulGet") {
+        if (!authenticate(req, token)) {
+          throw createApiError(401, "unauthorized", "missing or invalid bearer token");
+        }
+        return sendJson(res, 200, renderSoulRead(soulManager.read(route.logicalAgentId)));
+      }
+
+      if (route.type === "soulPut") {
+        if (!authenticate(req, token)) {
+          throw createApiError(401, "unauthorized", "missing or invalid bearer token");
+        }
+        const parsed = await readParsedBody(req, { limitBytes: bodyLimitBytes });
+        const content = extractSoulUploadContent(parsed);
+        const write = soulManager.write(route.logicalAgentId, content, {
+          syncWorkers: extractSyncWorkers(parsed, route.searchParams),
+        });
+        return sendJson(res, 200, renderSoulWrite(write));
+      }
+
+      if (route.type === "soulDistill") {
+        if (!authenticate(req, token)) {
+          throw createApiError(401, "unauthorized", "missing or invalid bearer token");
+        }
+        if (!soulDistiller?.distill) {
+          throw createApiError(503, "soul_distiller_not_configured", "soul distiller is not configured");
+        }
+        const parsed = await readParsedBody(req, { limitBytes: bodyLimitBytes });
+        const chatUpload = extractChatUpload(parsed);
+        const currentSoul = soulManager.readOptional(route.logicalAgentId);
+        const distillation = await soulDistiller.distill({
+          logicalAgentId: route.logicalAgentId,
+          currentSoul: currentSoul.content,
+          chatLog: chatUpload.content,
+          filename: chatUpload.filename,
+          traceId,
+        });
+        const write = soulManager.write(route.logicalAgentId, distillation.content, {
+          syncWorkers: extractSyncWorkers(parsed, route.searchParams),
+        });
+        return sendJson(res, 200, renderSoulDistill({ write, distillation }));
       }
 
       if (!authenticate(req, token)) {
@@ -125,7 +175,7 @@ async function handleChatTurn({
       logicalAgentId,
       conversationId: normalized.conversationId,
       userId: normalized.userId,
-      message: normalized.message,
+      message: normalized.messageText || normalized.message,
       history,
       traceId,
     });
@@ -134,6 +184,9 @@ async function handleChatTurn({
       conversationId: normalized.conversationId,
       userId: normalized.userId,
       message: normalized.message,
+      messageText: normalized.messageText,
+      attachments: normalized.attachments,
+      responseOptions: normalized.responseOptions,
       history,
       retrievalContext: retrieval.context,
     };
@@ -147,6 +200,9 @@ async function handleChatTurn({
       conversationId: normalized.conversationId,
       userId: normalized.userId,
       message: normalized.message,
+      messageText: normalized.messageText,
+      attachments: normalized.attachments,
+      responseOptions: normalized.responseOptions,
       history,
       retrieval,
       prompt,
@@ -163,6 +219,8 @@ async function handleChatTurn({
       reply: result.reply,
       sessionId,
       traceId,
+      responseOptions: normalized.responseOptions,
+      outputs: result.outputs,
     });
   });
 }
@@ -191,6 +249,34 @@ function matchRoute(req, defaultAgentId) {
   if (req.method === "GET" && url.pathname === "/admin/pool") {
     return { type: "adminPool" };
   }
+  if (req.method === "GET" && url.pathname === "/api/agents/soul") {
+    return { type: "soulGet", logicalAgentId: defaultAgentId, searchParams: url.searchParams };
+  }
+  if (req.method === "PUT" && url.pathname === "/api/agents/soul") {
+    return { type: "soulPut", logicalAgentId: defaultAgentId, searchParams: url.searchParams };
+  }
+  if (req.method === "POST" && url.pathname === "/api/agents/soul/distill") {
+    return { type: "soulDistill", logicalAgentId: defaultAgentId, searchParams: url.searchParams };
+  }
+
+  const soulDistillMatch = /^\/api\/agents\/([^/]+)\/soul\/distill$/.exec(url.pathname);
+  if (req.method === "POST" && soulDistillMatch) {
+    return {
+      type: "soulDistill",
+      logicalAgentId: decodeURIComponent(soulDistillMatch[1]),
+      searchParams: url.searchParams,
+    };
+  }
+
+  const soulMatch = /^\/api\/agents\/([^/]+)\/soul$/.exec(url.pathname);
+  if ((req.method === "GET" || req.method === "PUT") && soulMatch) {
+    return {
+      type: req.method === "GET" ? "soulGet" : "soulPut",
+      logicalAgentId: decodeURIComponent(soulMatch[1]),
+      searchParams: url.searchParams,
+    };
+  }
+
   if (req.method === "POST" && url.pathname === "/api/agents/chat") {
     return { type: "chat", logicalAgentId: defaultAgentId };
   }
@@ -280,11 +366,138 @@ function renderPoolAdminStatus({ defaultAgentId, pool, queues, debounce, promptA
   };
 }
 
+function renderSoulRead(soul) {
+  return {
+    ok: true,
+    agent_id: soul.logicalAgentId,
+    soul: {
+      path: soul.path,
+      content: soul.content,
+      bytes: soul.bytes,
+      sha256: soul.sha256,
+      source_workspace: soul.sourceWorkspace,
+    },
+  };
+}
+
+function renderSoulWrite(write) {
+  return {
+    ok: true,
+    agent_id: write.logicalAgentId,
+    soul: write.source,
+    sync: {
+      source: write.source,
+      template: write.template,
+      workers: write.workers,
+      sync_workers: write.syncWorkers,
+    },
+  };
+}
+
+function renderSoulDistill({ write, distillation }) {
+  return {
+    ...renderSoulWrite(write),
+    distillation: {
+      skill: distillation.skill,
+    },
+  };
+}
+
+function extractSoulUploadContent(parsed) {
+  const body = parsed.body || {};
+  const fields = parsed.fields || {};
+  const files = parsed.files || [];
+  return pickTextValue([
+    body.content,
+    body.soul,
+    body.markdown,
+    decodeBase64(body.contentBase64 || body.soulBase64),
+    fields.content,
+    fields.soul,
+    fields.markdown,
+    pickFileContent(files, ["soulFile", "soul", "file", "upload"]),
+  ], "SOUL.md content is required");
+}
+
+function extractChatUpload(parsed) {
+  const body = parsed.body || {};
+  const fields = parsed.fields || {};
+  const files = parsed.files || [];
+  const selectedFile = pickFile(files, ["chatFile", "chatLog", "chat_log", "file", "upload"]);
+  const content = pickTextValue([
+    body.chatLog,
+    body.chat_log,
+    body.content,
+    body.text,
+    body.transcript,
+    decodeBase64(body.chatLogBase64 || body.chat_log_base64 || body.contentBase64),
+    fields.chatLog,
+    fields.chat_log,
+    fields.content,
+    fields.text,
+    fields.transcript,
+    selectedFile?.content,
+  ], "chat log content is required");
+
+  return {
+    content,
+    filename: body.filename || fields.filename || selectedFile?.filename || "chat-log.txt",
+  };
+}
+
+function extractSyncWorkers(parsed, searchParams) {
+  const body = parsed.body || {};
+  const fields = parsed.fields || {};
+  for (const value of [body.syncWorkers, body.sync_workers, fields.syncWorkers, fields.sync_workers, searchParams?.get("syncWorkers")]) {
+    if (value !== undefined && value !== null && value !== "") {
+      return !["0", "false", "no", "off"].includes(String(value).trim().toLowerCase());
+    }
+  }
+  return true;
+}
+
+function pickTextValue(values, missingMessage) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  throw createApiError(400, "invalid_request", missingMessage);
+}
+
+function pickFile(files, names) {
+  for (const name of names) {
+    const file = files.find((item) => item.fieldName === name);
+    if (file) {
+      return file;
+    }
+  }
+  return files[0] || null;
+}
+
+function pickFileContent(files, names) {
+  return pickFile(files, names)?.content;
+}
+
+function decodeBase64(value) {
+  if (typeof value !== "string" || !value.trim()) {
+    return "";
+  }
+  try {
+    return Buffer.from(value, "base64").toString("utf8");
+  } catch {
+    return "";
+  }
+}
+
 module.exports = {
   createApp,
   handleChatTurn,
   matchRoute,
   renderPoolAdminStatus,
+  renderSoulDistill,
+  renderSoulRead,
+  renderSoulWrite,
   renderMetrics,
   safeRetrieve,
 };

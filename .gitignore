@@ -8,3 +8,11 @@ node_modules/
 coverage/
 .DS_Store
 docs/ops.local.zh-CN.md
+skills/aliyun-oss-skill/config/oss-config.json
+skills/aliyun-oss-skill/node_modules/
+skills/aliyun-oss-skill/package-lock.json
+skills/edge-tts/scripts/node_modules/
+skills/edge-tts/scripts/package-lock.json
+skills/edge-tts/scripts/*.mp3
+skills/edge-tts/scripts/*.ogg
+skills/edge-tts/scripts/*.wav

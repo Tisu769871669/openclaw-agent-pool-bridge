@@ -1,6 +1,8 @@
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 
+const { normalizeOutputItems } = require("./message");
+
 function runOpenClawAgent(options = {}) {
   const openclawBin = String(options.openclawBin || "openclaw").trim();
   const timeoutSeconds = Number(options.timeoutSeconds || 120);
@@ -74,6 +76,7 @@ function runOpenClawAgent(options = {}) {
 
       resolve({
         reply,
+        outputs: extractOutputs(parsed),
         raw: parsed || stripAnsi(stdout),
       });
     });
@@ -143,6 +146,24 @@ function extractReply(payload, fallbackText = "") {
   return String(fallbackText || "").trim();
 }
 
+function extractOutputs(payload) {
+  if (!payload || typeof payload !== "object") {
+    return [];
+  }
+
+  const candidates = [
+    payload.outputs,
+    payload.payloads,
+    payload.attachments,
+    payload?.data?.outputs,
+    payload?.data?.payloads,
+    payload?.result?.outputs,
+    payload?.result?.payloads,
+    payload?.result?.attachments,
+  ];
+  return normalizeOutputItems(candidates.flatMap((items) => (Array.isArray(items) ? items : [])));
+}
+
 function tryParseJson(raw) {
   const text = stripAnsi(raw).trim();
   if (!text) {
@@ -170,6 +191,7 @@ function stripAnsi(value) {
 
 module.exports = {
   buildRunnerEnv,
+  extractOutputs,
   extractReply,
   prependPathSegment,
   runOpenClawAgent,

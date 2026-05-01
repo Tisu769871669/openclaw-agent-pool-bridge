@@ -1,7 +1,11 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { buildPrompt } = require("./message");
+const {
+  buildPrompt,
+  formatAttachmentBlock,
+  formatResponseOptionsBlock,
+} = require("./message");
 
 function createPromptAdapter(options = {}) {
   const adapter = cleanText(options.adapter || "none").toLowerCase();
@@ -63,8 +67,11 @@ function buildTemplateVariables(input = {}) {
   const conversationId = cleanText(input.conversationId);
   const userId = cleanText(input.userId);
   const message = cleanText(input.message);
+  const messageText = cleanText(input.messageText);
   const history = formatHistory(input.history);
   const retrievalContext = cleanText(input.retrievalContext);
+  const attachments = formatAttachmentBlock(input.attachments);
+  const responseOptions = formatResponseOptionsBlock(input.responseOptions);
 
   return {
     logical_agent: logicalAgentId,
@@ -75,7 +82,14 @@ function buildTemplateVariables(input = {}) {
     user_id: userId,
     userId,
     message,
+    message_text: messageText,
+    messageText,
     history,
+    attachments,
+    response_options: responseOptions,
+    responseOptions,
+    tts_request: responseOptions,
+    ttsRequest: responseOptions,
     retrieval_context: retrievalContext,
     retrievalContext,
   };

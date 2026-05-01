@@ -35,6 +35,11 @@ server.listen(config.port, () => {
         topK: config.retrievalTopK,
         minScore: config.retrievalMinScore,
       },
+      soul: {
+        bodyLimitBytes: config.soulAdminBodyLimitBytes,
+        distillerAgentId: config.soulDistillerAgentId,
+        distillerSkillDir: config.soulDistillerSkillDir,
+      },
     })
   );
 });

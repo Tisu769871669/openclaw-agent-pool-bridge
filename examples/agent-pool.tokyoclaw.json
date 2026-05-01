@@ -2,11 +2,13 @@
   "defaultAgentId": "snowchuang",
   "agents": {
     "snowchuang": {
+      "sourceWorkspace": "/root/.openclaw/workspace-snowchuang",
       "templateWorkspace": "/root/openclaw-agent-templates/snowchuang",
       "workerWorkspaceRoot": "/root/.openclaw/workers/workspace",
       "workers": ["snowchuang-1", "snowchuang-2", "snowchuang-3", "snowchuang-4", "snowchuang-5"]
     },
     "yixiang": {
+      "sourceWorkspace": "/root/.openclaw/workspace-yixiang",
       "templateWorkspace": "/root/openclaw-agent-templates/yixiang",
       "workerWorkspaceRoot": "/root/.openclaw/workers/workspace",
       "workers": ["yixiang-1", "yixiang-2", "yixiang-3", "yixiang-4", "yixiang-5"]

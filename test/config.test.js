@@ -16,6 +16,7 @@ test("loadConfig supports template workspace agent definitions", () => {
       agents: {
         main: {
           templateWorkspace: "templates/main",
+          sourceWorkspace: ".openclaw/workspace",
           workerWorkspaceRoot: "workers/workspace",
           workers: ["main-1", "main-2"],
         },
@@ -38,6 +39,7 @@ test("loadConfig supports template workspace agent definitions", () => {
   });
   assert.deepEqual(config.agentTemplates.main, {
     logicalAgentId: "main",
+    sourceWorkspace: path.join(dir, ".openclaw", "workspace"),
     templateWorkspace: path.join(dir, "templates", "main"),
     workerWorkspaceRoot: path.join(dir, "workers", "workspace"),
     workers: ["main-1", "main-2"],
@@ -115,4 +117,24 @@ test("loadConfig supports retrieval adapter environment options", () => {
   assert.equal(config.ragEndpoint, "https://rag.example.test/search");
   assert.equal(config.retrievalTopK, 4);
   assert.equal(config.retrievalMinScore, 0.7);
+});
+
+test("loadConfig supports SOUL distillation environment options", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const config = loadConfig(
+    {
+      SOUL_ADMIN_BODY_LIMIT_BYTES: "1024",
+      SOUL_DISTILLER_AGENT_ID: "soul-distiller",
+      SOUL_DISTILLER_SKILL_DIR: "skills/shared-soul",
+      SOUL_DISTILLER_SKILL_SOURCE_URL: "https://raw.githubusercontent.test/team/soul/SKILL.md",
+      SOUL_DISTILLER_TIMEOUT_SECONDS: "90",
+    },
+    dir
+  );
+
+  assert.equal(config.soulAdminBodyLimitBytes, 1024);
+  assert.equal(config.soulDistillerAgentId, "soul-distiller");
+  assert.equal(config.soulDistillerSkillDir, path.join(dir, "skills", "shared-soul"));
+  assert.equal(config.soulDistillerSkillSourceUrl, "https://raw.githubusercontent.test/team/soul/SKILL.md");
+  assert.equal(config.soulDistillerTimeoutSeconds, 90);
 });

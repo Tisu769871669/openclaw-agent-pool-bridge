@@ -86,6 +86,7 @@ test("buildSetupPlan reuses existing worker names and template paths by default"
     existingConfig: {
       agents: {
         main: {
+          sourceWorkspace: "/root/.openclaw/workspace",
           templateWorkspace: "/root/openclaw-agent-templates/sudan-main",
           workerWorkspaceRoot: "/root/.openclaw/workers/workspace",
           workers: ["sudan-main-1", "sudan-main-2"],
@@ -110,6 +111,7 @@ test("buildSetupPlan expands existing worker prefix when count is explicit", () 
     existingConfig: {
       agents: {
         main: {
+          sourceWorkspace: "/root/.openclaw/workspace",
           templateWorkspace: "/root/openclaw-agent-templates/sudan-main",
           workerWorkspaceRoot: "/root/.openclaw/workers/workspace",
           workers: ["sudan-main-1", "sudan-main-2"],
@@ -143,6 +145,7 @@ test("mergeAgentConfig preserves existing agents and updates selected definition
     defaultAgentId: "main",
     agents: {
       main: {
+        sourceWorkspace: "/root/.openclaw/workspace",
         templateWorkspace: "/root/openclaw-agent-templates/main",
         workerWorkspaceRoot: "/root/.openclaw/workers/workspace",
         workers: ["main-1", "main-2"],
@@ -183,6 +186,45 @@ test("executeSetupPlan dry-run tolerates templates that would be created", () =>
   assert.equal(fs.existsSync(path.join(dir, "templates", "main")), false);
   assert.equal(fs.existsSync(path.join(dir, "agent-pool.config.json")), false);
   assert.equal(output.some((line) => line.includes("would sync main")), true);
+});
+
+test("sync command refreshes template from configured sourceWorkspace", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agents-pool-"));
+  const sourceWorkspace = path.join(dir, "source", "main");
+  const templateWorkspace = path.join(dir, "templates", "main");
+  const workerWorkspace = path.join(dir, "workers", "workspace", "main-1");
+  fs.mkdirSync(sourceWorkspace, { recursive: true });
+  fs.mkdirSync(templateWorkspace, { recursive: true });
+  fs.mkdirSync(workerWorkspace, { recursive: true });
+  fs.writeFileSync(path.join(sourceWorkspace, "SOUL.md"), "source soul", "utf8");
+  fs.writeFileSync(path.join(templateWorkspace, "SOUL.md"), "old template soul", "utf8");
+  fs.writeFileSync(path.join(workerWorkspace, "SOUL.md"), "old worker soul", "utf8");
+  fs.writeFileSync(
+    path.join(dir, "agent-pool.config.json"),
+    JSON.stringify({
+      defaultAgentId: "main",
+      agents: {
+        main: {
+          sourceWorkspace,
+          templateWorkspace,
+          workerWorkspaceRoot: path.join(dir, "workers", "workspace"),
+          workers: ["main-1"],
+        },
+      },
+    }),
+    "utf8"
+  );
+
+  const output = [];
+  const code = await runCli(["sync", "main", "--config", path.join(dir, "agent-pool.config.json")], {
+    stdout: { write: (value) => output.push(value) },
+    stderr: { write: () => {} },
+  });
+
+  assert.equal(code, 0);
+  assert.equal(fs.readFileSync(path.join(templateWorkspace, "SOUL.md"), "utf8"), "source soul");
+  assert.equal(fs.readFileSync(path.join(workerWorkspace, "SOUL.md"), "utf8"), "source soul");
+  assert.match(output.join(""), /refreshed template/);
 });
 
 test("pool command fetches live admin pool status with bearer token", async () => {

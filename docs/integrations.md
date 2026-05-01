@@ -11,8 +11,9 @@ This guide explains how existing business bridges can move from direct `openclaw
 | Keep caller contract stable | 调用方继续传 `conversationId`、`userId`、`content`，不要暴露 worker agent ID。 |
 | Use one logical agent per customer-service persona | 每个客服人格/业务线对应一个 logical agent。 |
 | Create multiple workers per logical agent | 每个 logical agent 配多个 worker，例如 5 个，才有真实并发。 |
-| Maintain one template workspace | 人格、prompt、skills、knowledge 统一维护在模板 workspace。 |
-| Sync before serving traffic | 模板变更后先同步到 worker，再重启/检查服务。 |
+| Maintain one source workspace | 人格、prompt、skills、knowledge 统一维护在 logical agent 源 workspace。 |
+| Install shared skills from repo root | 通用 skill 以 `skills/<name>` 为源，用 `scripts/install-shared-skill.js` 装到每个 template。 |
+| Sync before serving traffic | 源 workspace 变更后先同步到 template 和 worker，再重启/检查服务。 |
 | Inspect runtime with `/admin/pool` | 排查并发、积压、卡死和最近错误时优先看运行态接口。 |
 
 ## Sudan Bridge / Sudan 业务桥
@@ -22,10 +23,10 @@ The Sudan bridge already has useful request normalization, prompt shaping, knowl
 中文说明：Sudan 侧已有请求归一化、prompt 组装、知识检索和会话排队能力。迁移时保留这些业务逻辑，只把最终 OpenClaw 调用切到 worker pool bridge。
 
 1. Create worker agents such as `sudan-main-1` through `sudan-main-5`.
-2. Create a canonical template workspace at `/root/openclaw-agent-templates/sudan-main`.
-3. Put the Sudan workspace files, persona files, skills, and knowledge files in that template.
+2. Keep the canonical source workspace at `/root/.openclaw/workspace`.
+3. Create a generated template workspace at `/root/openclaw-agent-templates/sudan-main`.
 4. Use `examples/agent-pool.sudan.json` as the pool config.
-5. Run `node scripts/sync-worker-workspaces.js main --config examples/agent-pool.sudan.json` after every template change.
+5. Run `agents-pool sync main --config examples/agent-pool.sudan.json` after every source workspace change.
 6. Keep the Sudan-specific prompt builder and call the shared pool runner for the actual OpenClaw invocation.
 7. Keep the public response schema unchanged.
 
@@ -132,6 +133,9 @@ Template variables:
 - `{{user_id}}`
 - `{{history}}`
 - `{{message}}`
+- `{{message_text}}`
+- `{{attachments}}`
+- `{{response_options}}`
 - `{{retrieval_context}}`
 
 Example:
@@ -151,6 +155,8 @@ Example:
 
 中文说明：这一步先解决“不同客服怎么用自己的 prompt”。每个服务器或每个 logical agent 可以维护自己的模板文件，然后通过 `.env` 指向它。模板文件建议放在私有运维目录或业务仓库里，不要把真实内部 SOP、价格策略、客户资料直接提交到开源仓库。
 仓库里的 `examples/prompt-template.zh-CN.md` 只是通用示例，可以复制后按具体客服改写。
+
+富消息说明：`{{message}}` 默认已经包含图片、文件、音频摘要和 TTS 请求提示，旧模板不用改也能看到完整上下文。如果你想把模板分区写得更细，可以用 `{{message_text}}` 放纯文本，用 `{{attachments}}` 放附件摘要，用 `{{response_options}}` 放 TTS 等回复要求。
 
 Retrieval Adapter is the second adapter layer. It runs before Prompt Adapter and fills `{{retrieval_context}}`.
 
@@ -194,6 +200,39 @@ RAG_ENDPOINT=https://your-rag-service.example/search
 The RAG endpoint receives `query`, `logicalAgentId`, `conversationId`, `userId`, `topK`, and `minScore`. It may return either a ready-made `context` string or a `hits` array.
 
 中文说明：苏丹 prompt 可以迁，但不要写死进开源核心。更好的方式是让每个客服在 env 或配置里选择 prompt adapter、FAQ/RAG provider 和参数；FAQ/RAG 命中内容会填进 `{{retrieval_context}}`。检索服务短暂失败时，bridge 会记录错误并继续让客服回复，避免线上聊天直接失败。
+
+## SOUL.md Management / 人格文件管理
+
+The bridge exposes authenticated maintenance endpoints for each logical agent's source `SOUL.md`:
+
+```http
+GET /api/agents/:agentId/soul
+PUT /api/agents/:agentId/soul
+POST /api/agents/:agentId/soul/distill
+```
+
+中文说明：`GET` 用来查看 logical agent 源 workspace 的 `SOUL.md`；`PUT` 支持 JSON、`text/plain` 或 multipart 文件上传覆盖源 `SOUL.md`；`distill` 支持上传聊天记录文件，让通用 `customer-soul-distiller` skill 先蒸馏，再覆盖对应 agent 的源 `SOUL.md`。
+
+The write path updates:
+
+1. `/root/.openclaw/workspace-<agent>/SOUL.md` or `/root/.openclaw/workspace/SOUL.md` for `main`
+2. `/root/openclaw-agent-templates/<agent>/SOUL.md`
+3. each configured `/root/.openclaw/workers/workspace/<worker>/SOUL.md`
+
+It intentionally syncs only `SOUL.md`, not the whole template directory. Use `agents-pool sync <agent>` when you also changed skills, knowledge, or prompt files.
+
+These endpoints require the logical agent config to use object form with `sourceWorkspace`; legacy shorthand arrays can still route chat, but they do not define a source `SOUL.md` for maintenance APIs.
+
+Distillation setup:
+
+```env
+SOUL_DISTILLER_AGENT_ID=soul-distiller
+SOUL_DISTILLER_SKILL_DIR=skills/customer-soul-distiller
+SOUL_DISTILLER_SKILL_SOURCE_URL=https://raw.githubusercontent.com/<org>/<repo>/<branch>/<path>/SKILL.md
+SOUL_DISTILLER_TIMEOUT_SECONDS=120
+```
+
+中文判断：聊天记录里出现的订单号、手机号、wxid、当前价格、库存、活动时间等不应该被写进 `SOUL.md`。这些内容属于短期会话、FAQ/RAG 或实时业务 API；`SOUL.md` 只保留长期的人格、边界和服务方式。
 
 ## Publishing Checklist / 发布前检查
 

@@ -2,6 +2,7 @@
   "defaultAgentId": "main",
   "agents": {
     "main": {
+      "sourceWorkspace": "/root/.openclaw/workspace",
       "templateWorkspace": "/root/openclaw-agent-templates/main",
       "workerWorkspaceRoot": "/root/.openclaw/workers/workspace",
       "workers": ["main-1", "main-2", "main-3", "main-4", "main-5"]

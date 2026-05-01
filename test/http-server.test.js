@@ -351,6 +351,100 @@ test("HTTP server sends prompt adapter output to the runner", async () => {
   }
 });
 
+test("HTTP server passes rich chat context to the runner and returns TTS metadata", async () => {
+  const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const runnerCalls = [];
+  const promptAdapterCalls = [];
+  const server = createApp({
+    token: "secret",
+    defaultAgentId: "main",
+    pool: new AgentPool({
+      defaultAgentId: "main",
+      queueTimeoutMs: 200,
+      stickyTtlMs: 1000,
+      agents: { main: ["main-1"] },
+    }),
+    queues: new ConversationQueueManager(),
+    sessionStore: new SessionStore({ dir: sessionDir, historyLimit: 20 }),
+    promptAdapter: {
+      snapshot: () => ({ adapter: "test" }),
+      buildPrompt: (input) => {
+        promptAdapterCalls.push(input);
+        return `message=${input.message}\nattachments=${input.attachments.length}\ntts=${input.responseOptions.tts.enabled}`;
+      },
+    },
+    runner: async (input) => {
+      runnerCalls.push(input);
+      return {
+        reply: "可以，我给您发语音版。",
+        outputs: [
+          {
+            type: "audio",
+            url: "https://example.test/reply.mp3",
+            mimeType: "audio/mpeg",
+            title: "TTS 语音回复",
+          },
+        ],
+      };
+    },
+  });
+
+  const port = await listen(server);
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/agents/main/chat`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer secret",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        conversationId: "customer-rich",
+        userId: "user-rich",
+        content: {
+          text: "看看这个图，可以语音回复吗 😊",
+          attachments: [
+            {
+              type: "image",
+              url: "https://example.test/look.png",
+              filename: "look.png",
+              mimeType: "image/png",
+            },
+            {
+              type: "file",
+              url: "https://example.test/order.pdf",
+              filename: "order.pdf",
+            },
+          ],
+          tts: true,
+        },
+      }),
+    });
+
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+
+    assert.equal(promptAdapterCalls.length, 1);
+    assert.match(promptAdapterCalls[0].message, /看看这个图，可以语音回复吗 😊/);
+    assert.match(promptAdapterCalls[0].message, /1\. image: look\.png/);
+    assert.equal(promptAdapterCalls[0].attachments.length, 2);
+    assert.equal(promptAdapterCalls[0].responseOptions.tts.enabled, true);
+    assert.equal(runnerCalls[0].attachments.length, 2);
+    assert.equal(runnerCalls[0].responseOptions.tts.enabled, true);
+    assert.equal(payload.reply, "可以，我给您发语音版。");
+    assert.deepEqual(payload.tts, { requested: true });
+    assert.deepEqual(payload.outputs, [
+      {
+        type: "audio",
+        url: "https://example.test/reply.mp3",
+        mime_type: "audio/mpeg",
+        title: "TTS 语音回复",
+      },
+    ]);
+  } finally {
+    await close(server);
+  }
+});
+
 test("HTTP server passes retrieval context into the prompt adapter", async () => {
   const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
   const promptAdapterCalls = [];
@@ -479,8 +573,8 @@ test("HTTP server debounces same-conversation bursts into one runner call", asyn
     queues: new ConversationQueueManager(),
     debounce: new DebounceQueue({
       enabled: true,
-      windowMs: 20,
-      maxWaitMs: 100,
+      windowMs: 80,
+      maxWaitMs: 200,
     }),
     sessionStore: new SessionStore({ dir: sessionDir, historyLimit: 20 }),
     runner: async (input) => {
@@ -505,9 +599,9 @@ test("HTTP server debounces same-conversation bursts into one runner call", asyn
     }).then((response) => response.json());
 
     const first = send("第一句");
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    await new Promise((resolve) => setTimeout(resolve, 10));
     const second = send("第二句");
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    await new Promise((resolve) => setTimeout(resolve, 10));
     const third = send("第三句");
 
     const payloads = await Promise.all([first, second, third]);
@@ -518,6 +612,230 @@ test("HTTP server debounces same-conversation bursts into one runner call", asyn
     assert.match(runnerCalls[0].message, /第三句/);
     assert.equal(payloads[0].reply, payloads[1].reply);
     assert.equal(payloads[1].reply, payloads[2].reply);
+  } finally {
+    await close(server);
+  }
+});
+
+test("HTTP server exposes source SOUL.md for a logical agent", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const sourceWorkspace = path.join(dir, "source", "main");
+  const templateWorkspace = path.join(dir, "templates", "main");
+  fs.mkdirSync(sourceWorkspace, { recursive: true });
+  fs.mkdirSync(templateWorkspace, { recursive: true });
+  fs.writeFileSync(path.join(sourceWorkspace, "SOUL.md"), "# SOUL\n\n已有客服人格", "utf8");
+  fs.writeFileSync(path.join(templateWorkspace, "SOUL.md"), "# SOUL\n\n旧模板人格", "utf8");
+
+  const server = createApp({
+    token: "secret",
+    defaultAgentId: "main",
+    agentTemplates: {
+      main: {
+        logicalAgentId: "main",
+        sourceWorkspace,
+        templateWorkspace,
+        workers: [],
+        workerWorkspaces: {},
+      },
+    },
+    pool: new AgentPool({
+      defaultAgentId: "main",
+      queueTimeoutMs: 200,
+      stickyTtlMs: 1000,
+      agents: { main: ["main-1"] },
+    }),
+    queues: new ConversationQueueManager(),
+    sessionStore: new SessionStore({ dir: path.join(dir, "sessions"), historyLimit: 20 }),
+    runner: async () => ({ reply: "ok" }),
+  });
+
+  const port = await listen(server);
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/agents/main/soul`, {
+      headers: { Authorization: "Bearer secret" },
+    });
+
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.ok, true);
+    assert.equal(payload.agent_id, "main");
+    assert.equal(payload.soul.content, "# SOUL\n\n已有客服人格");
+    assert.equal(payload.soul.path, path.join(sourceWorkspace, "SOUL.md"));
+    assert.equal(payload.soul.source_workspace, sourceWorkspace);
+  } finally {
+    await close(server);
+  }
+});
+
+test("HTTP server overwrites SOUL.md and syncs it to worker workspaces", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const sourceWorkspace = path.join(dir, "source", "main");
+  const templateWorkspace = path.join(dir, "templates", "main");
+  const workerWorkspace = path.join(dir, "workers", "main-1");
+  fs.mkdirSync(sourceWorkspace, { recursive: true });
+  fs.mkdirSync(templateWorkspace, { recursive: true });
+  fs.mkdirSync(workerWorkspace, { recursive: true });
+  fs.writeFileSync(path.join(sourceWorkspace, "SOUL.md"), "old source soul", "utf8");
+  fs.writeFileSync(path.join(templateWorkspace, "SOUL.md"), "old template soul", "utf8");
+  fs.writeFileSync(path.join(workerWorkspace, "SOUL.md"), "old worker soul", "utf8");
+
+  const server = createApp({
+    token: "secret",
+    defaultAgentId: "main",
+    agentTemplates: {
+      main: {
+        logicalAgentId: "main",
+        sourceWorkspace,
+        templateWorkspace,
+        workers: ["main-1"],
+        workerWorkspaces: { "main-1": workerWorkspace },
+      },
+    },
+    pool: new AgentPool({
+      defaultAgentId: "main",
+      queueTimeoutMs: 200,
+      stickyTtlMs: 1000,
+      agents: { main: ["main-1"] },
+    }),
+    queues: new ConversationQueueManager(),
+    sessionStore: new SessionStore({ dir: path.join(dir, "sessions"), historyLimit: 20 }),
+    runner: async () => ({ reply: "ok" }),
+  });
+
+  const port = await listen(server);
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/agents/main/soul`, {
+      method: "PUT",
+      headers: {
+        Authorization: "Bearer secret",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ content: "# SOUL\n\n新的客服人格" }),
+    });
+
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.ok, true);
+    assert.equal(payload.soul.path, path.join(sourceWorkspace, "SOUL.md"));
+    assert.equal(payload.sync.template.path, path.join(templateWorkspace, "SOUL.md"));
+    assert.equal(payload.sync.workers.length, 1);
+    assert.equal(fs.readFileSync(path.join(sourceWorkspace, "SOUL.md"), "utf8"), "# SOUL\n\n新的客服人格");
+    assert.equal(fs.readFileSync(path.join(templateWorkspace, "SOUL.md"), "utf8"), "# SOUL\n\n新的客服人格");
+    assert.equal(fs.readFileSync(path.join(workerWorkspace, "SOUL.md"), "utf8"), "# SOUL\n\n新的客服人格");
+  } finally {
+    await close(server);
+  }
+});
+
+test("HTTP server distills uploaded chat history into SOUL.md", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const sourceWorkspace = path.join(dir, "source", "main");
+  const templateWorkspace = path.join(dir, "templates", "main");
+  const workerWorkspace = path.join(dir, "workers", "main-1");
+  fs.mkdirSync(sourceWorkspace, { recursive: true });
+  fs.mkdirSync(templateWorkspace, { recursive: true });
+  fs.mkdirSync(workerWorkspace, { recursive: true });
+  fs.writeFileSync(path.join(sourceWorkspace, "SOUL.md"), "# SOUL\n\n原有人格", "utf8");
+  fs.writeFileSync(path.join(templateWorkspace, "SOUL.md"), "# SOUL\n\n旧模板人格", "utf8");
+
+  const distillerCalls = [];
+  const server = createApp({
+    token: "secret",
+    defaultAgentId: "main",
+    agentTemplates: {
+      main: {
+        logicalAgentId: "main",
+        sourceWorkspace,
+        templateWorkspace,
+        workers: ["main-1"],
+        workerWorkspaces: { "main-1": workerWorkspace },
+      },
+    },
+    soulDistiller: {
+      distill: async (input) => {
+        distillerCalls.push(input);
+        return {
+          content: "# SOUL\n\n蒸馏后的客服人格",
+          skill: { name: "customer-soul-distiller", path: path.join(dir, "skills", "customer-soul-distiller") },
+        };
+      },
+    },
+    pool: new AgentPool({
+      defaultAgentId: "main",
+      queueTimeoutMs: 200,
+      stickyTtlMs: 1000,
+      agents: { main: ["main-1"] },
+    }),
+    queues: new ConversationQueueManager(),
+    sessionStore: new SessionStore({ dir: path.join(dir, "sessions"), historyLimit: 20 }),
+    runner: async () => ({ reply: "ok" }),
+  });
+
+  const port = await listen(server);
+  try {
+    const form = new FormData();
+    form.set("chatFile", new Blob(["用户：价格多少？\n客服：您好，会员价 138。"], { type: "text/plain" }), "chat.txt");
+
+    const response = await fetch(`http://127.0.0.1:${port}/api/agents/main/soul/distill`, {
+      method: "POST",
+      headers: { Authorization: "Bearer secret" },
+      body: form,
+    });
+
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.ok, true);
+    assert.equal(payload.distillation.skill.name, "customer-soul-distiller");
+    assert.equal(distillerCalls.length, 1);
+    assert.equal(distillerCalls[0].logicalAgentId, "main");
+    assert.equal(distillerCalls[0].currentSoul, "# SOUL\n\n原有人格");
+    assert.match(distillerCalls[0].chatLog, /会员价 138/);
+    assert.equal(distillerCalls[0].filename, "chat.txt");
+    assert.equal(fs.readFileSync(path.join(sourceWorkspace, "SOUL.md"), "utf8"), "# SOUL\n\n蒸馏后的客服人格");
+    assert.equal(fs.readFileSync(path.join(templateWorkspace, "SOUL.md"), "utf8"), "# SOUL\n\n蒸馏后的客服人格");
+    assert.equal(fs.readFileSync(path.join(workerWorkspace, "SOUL.md"), "utf8"), "# SOUL\n\n蒸馏后的客服人格");
+  } finally {
+    await close(server);
+  }
+});
+
+test("HTTP server rejects SOUL updates when sourceWorkspace is missing", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const templateWorkspace = path.join(dir, "templates", "main");
+  fs.mkdirSync(templateWorkspace, { recursive: true });
+
+  const server = createApp({
+    token: "secret",
+    defaultAgentId: "main",
+    agentTemplates: {
+      main: {
+        logicalAgentId: "main",
+        templateWorkspace,
+        workers: [],
+        workerWorkspaces: {},
+      },
+    },
+    pool: new AgentPool({
+      defaultAgentId: "main",
+      queueTimeoutMs: 200,
+      stickyTtlMs: 1000,
+      agents: { main: ["main-1"] },
+    }),
+    queues: new ConversationQueueManager(),
+    sessionStore: new SessionStore({ dir: path.join(dir, "sessions"), historyLimit: 20 }),
+    runner: async () => ({ reply: "ok" }),
+  });
+
+  const port = await listen(server);
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/agents/main/soul`, {
+      headers: { Authorization: "Bearer secret" },
+    });
+
+    assert.equal(response.status, 404);
+    const payload = await response.json();
+    assert.equal(payload.ok, false);
+    assert.equal(payload.error, "agent_source_not_found");
   } finally {
     await close(server);
   }

@@ -64,6 +64,13 @@ function loadConfig(env = process.env, baseDir = process.cwd()) {
     ragEndpoint: cleanText(env.RAG_ENDPOINT),
     retrievalTopK: Number(env.RETRIEVAL_TOP_K || 3),
     retrievalMinScore: Number(env.RETRIEVAL_MIN_SCORE || 0.65),
+    soulAdminBodyLimitBytes: Number(env.SOUL_ADMIN_BODY_LIMIT_BYTES || 5 * 1024 * 1024),
+    soulDistillerAgentId: cleanText(env.SOUL_DISTILLER_AGENT_ID),
+    soulDistillerSkillDir: cleanText(env.SOUL_DISTILLER_SKILL_DIR)
+      ? resolvePath(cleanText(env.SOUL_DISTILLER_SKILL_DIR), baseDir)
+      : path.join(baseDir, "skills", "customer-soul-distiller"),
+    soulDistillerSkillSourceUrl: cleanText(env.SOUL_DISTILLER_SKILL_SOURCE_URL),
+    soulDistillerTimeoutSeconds: Number(env.SOUL_DISTILLER_TIMEOUT_SECONDS || 120),
     sessionStoreDir: resolvePath(env.SESSION_STORE_DIR || ".sessions", baseDir),
     sessionHistoryLimit: Number(env.SESSION_HISTORY_LIMIT || 20),
     agents: normalizedAgentConfig.agents,
@@ -94,6 +101,9 @@ function normalizeAgentConfig(rawAgents, baseDir) {
       agents[logicalAgentId] = workers;
 
       if (definition.templateWorkspace) {
+        const sourceWorkspace = definition.sourceWorkspace
+          ? resolvePath(String(definition.sourceWorkspace), baseDir)
+          : "";
         const templateWorkspace = resolvePath(String(definition.templateWorkspace), baseDir);
         const workerWorkspaceRoot = definition.workerWorkspaceRoot
           ? resolvePath(String(definition.workerWorkspaceRoot), baseDir)
@@ -102,6 +112,7 @@ function normalizeAgentConfig(rawAgents, baseDir) {
 
         agentTemplates[logicalAgentId] = {
           logicalAgentId,
+          sourceWorkspace,
           templateWorkspace,
           workerWorkspaceRoot,
           workers,

@@ -235,6 +235,7 @@ function mergeAgentConfig(existingConfig, plan) {
   };
   for (const agent of plan.agents) {
     next.agents[agent.logicalAgentId] = {
+      sourceWorkspace: agent.sourceWorkspace,
       templateWorkspace: agent.templateWorkspace,
       workerWorkspaceRoot: agent.workerWorkspaceRoot,
       workers: agent.workers,
@@ -312,6 +313,7 @@ async function commandStatus(context) {
     writeLine(context.stdout, `- ${logicalAgentId}`);
     if (!Array.isArray(definition)) {
       writeLine(context.stdout, `  templateWorkspace: ${definition.templateWorkspace || ""}`);
+      writeLine(context.stdout, `  sourceWorkspace: ${definition.sourceWorkspace || ""}`);
       writeLine(context.stdout, `  workerWorkspaceRoot: ${definition.workerWorkspaceRoot || ""}`);
     }
     writeLine(context.stdout, `  workers: ${workers.join(", ")}`);
@@ -399,8 +401,9 @@ async function commandSync(context) {
     throw new Error(`No templateWorkspace configured for logical agent ${logicalAgentId}`);
   }
 
-  if (args["source-workspace"]) {
-    mirrorSourceToTemplate(args["source-workspace"], template.templateWorkspace, {
+  const sourceWorkspace = args["source-workspace"] || template.sourceWorkspace;
+  if (sourceWorkspace && !args["no-template-refresh"]) {
+    mirrorSourceToTemplate(sourceWorkspace, template.templateWorkspace, {
       dryRun: Boolean(args["dry-run"]),
       stdout: context.stdout,
     });
@@ -785,12 +788,14 @@ function existingAgentDefinition(existingConfig, logicalAgentId) {
   if (raw && typeof raw === "object") {
     return {
       templateWorkspace: raw.templateWorkspace || "",
+      sourceWorkspace: raw.sourceWorkspace || "",
       workerWorkspaceRoot: raw.workerWorkspaceRoot || "",
       workers: Array.isArray(raw.workers) ? raw.workers : [],
     };
   }
   return {
     templateWorkspace: "",
+    sourceWorkspace: "",
     workerWorkspaceRoot: "",
     workers: [],
   };

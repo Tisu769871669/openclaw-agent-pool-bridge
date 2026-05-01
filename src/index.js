@@ -7,6 +7,8 @@ const { runOpenClawAgent } = require("./openclaw-runner");
 const { createPromptAdapter } = require("./prompt-adapter");
 const { createRetrievalAdapter } = require("./retrieval-adapter");
 const { SessionStore } = require("./session-store");
+const { createSoulDistiller } = require("./soul-distiller");
+const { createSoulManager } = require("./soul-manager");
 
 function createServerFromConfig(config) {
   const pool = new AgentPool({
@@ -40,6 +42,17 @@ function createServerFromConfig(config) {
     topK: config.retrievalTopK,
     minScore: config.retrievalMinScore,
   });
+  const soulManager = createSoulManager({
+    defaultAgentId: config.defaultAgentId,
+    agentTemplates: config.agentTemplates,
+  });
+  const soulDistiller = createSoulDistiller({
+    openclawBin: config.openclawBin,
+    agentId: config.soulDistillerAgentId,
+    timeoutSeconds: config.soulDistillerTimeoutSeconds,
+    skillDir: config.soulDistillerSkillDir,
+    skillSourceUrl: config.soulDistillerSkillSourceUrl,
+  });
   const runner = (input) =>
     runOpenClawAgent({
       openclawBin: config.openclawBin,
@@ -58,6 +71,9 @@ function createServerFromConfig(config) {
     promptAdapter,
     retrievalAdapter,
     sessionStore,
+    soulManager,
+    soulDistiller,
+    bodyLimitBytes: config.soulAdminBodyLimitBytes,
     runner,
   });
 }
@@ -71,6 +87,8 @@ module.exports = {
   createPromptAdapter,
   createRetrievalAdapter,
   createServerFromConfig,
+  createSoulDistiller,
+  createSoulManager,
   loadConfig,
   loadDotEnv,
   runOpenClawAgent,

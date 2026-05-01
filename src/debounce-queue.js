@@ -135,6 +135,9 @@ function mergeNormalizedMessages(items) {
   const normalizedItems = Array.isArray(items) ? items.filter(Boolean) : [];
   const last = normalizedItems[normalizedItems.length - 1] || {};
   const messages = normalizedItems.map((item) => item.message).filter(Boolean);
+  const messageTexts = normalizedItems.map((item) => item.messageText).filter(Boolean);
+  const attachments = normalizedItems.flatMap((item) => Array.isArray(item.attachments) ? item.attachments : []);
+  const responseOptions = mergeResponseOptions(normalizedItems.map((item) => item.responseOptions));
   const requestHistories = normalizedItems
     .map((item) => removeCurrentMessageFromContext(item.messageList, item.message))
     .filter((history) => history.length);
@@ -142,10 +145,25 @@ function mergeNormalizedMessages(items) {
   return {
     ...last,
     message: formatDebouncedMessage(messages),
+    messageText: formatDebouncedMessage(messageTexts),
+    attachments,
+    responseOptions,
     messageList: [],
     historyOverride: requestHistories.at(-1) || [],
     debouncedMessages: messages,
   };
+}
+
+function mergeResponseOptions(optionsList) {
+  const out = {};
+  const tts = optionsList
+    .map((options) => options?.tts)
+    .filter((option) => option?.enabled)
+    .at(-1);
+  if (tts) {
+    out.tts = tts;
+  }
+  return Object.keys(out).length ? out : optionsList.at(-1) || {};
 }
 
 function formatDebouncedMessage(messages) {
