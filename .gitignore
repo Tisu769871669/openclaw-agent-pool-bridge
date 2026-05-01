@@ -8,6 +8,7 @@ node_modules/
 coverage/
 .DS_Store
 docs/ops.local.zh-CN.md
+sop文件参数.txt
 skills/aliyun-oss-skill/config/oss-config.json
 skills/aliyun-oss-skill/node_modules/
 skills/aliyun-oss-skill/package-lock.json

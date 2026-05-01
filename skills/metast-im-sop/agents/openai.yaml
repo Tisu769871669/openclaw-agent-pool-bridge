@@ -1,0 +1,4 @@
+interface:
+  display_name: "Metast IM SOP"
+  short_description: "Metast私域IM、SOP与朋友圈接口"
+  default_prompt: "Use $metast-im-sop to prepare a dry-run private chat SOP task."

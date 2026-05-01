@@ -1,0 +1,17 @@
+{
+  "id": "example",
+  "name": "Example Metast IM SOP profile",
+  "baseUrl": "https://lx.metast.cn",
+  "defaultPlatform": "wx",
+  "credentialEnv": {
+    "mcpKey": "METAST_MCP_KEY",
+    "mcpSecret": "METAST_MCP_SECRET"
+  },
+  "endpoints": {
+    "sendChatMessagePath": "",
+    "activeStatusPath": ""
+  },
+  "safety": {
+    "allowSubmit": false
+  }
+}

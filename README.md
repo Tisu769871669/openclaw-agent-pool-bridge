@@ -17,6 +17,7 @@ It keeps the existing `/api/agents/chat` and `/api/agents/:agentId/chat` protoco
 | `docs/aliyun-oss-skill.md` | 通用客服安装阿里云 OSS skill、配置 `openclawlist` bucket、同步 worker 和排查。 |
 | `docs/openclaw-tts.md` | 通用客服配置 OpenClaw 原生 TTS、安装 `edge-tts` skill 和运行态验证。 |
 | `docs/article-image-generator.md` | 通用客服安装 `article-image-generator` / `gpt-image-2` 生图 skill，让所有特化 agent 复用。 |
+| `docs/metast-im-sop.md` | Metast 私域 IM/SOP skill，覆盖个微/企微联系人、SOP、朋友圈和真实外发安全边界。 |
 | `docs/ops.local.zh-CN.md` | 中文/English-friendly 本地和服务器运维手册，包含状态检查、同步、排障、回滚。 |
 
 ## Why
