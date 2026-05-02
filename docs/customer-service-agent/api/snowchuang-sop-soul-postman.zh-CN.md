@@ -1,6 +1,6 @@
 # 雪创客服 SOP Skill 与 SOUL 蒸馏接口文档
 
-最后核验时间：2026-05-02 22:52 CST
+最后核验时间：2026-05-02 23:00 CST
 
 ## 1. 当前线上状态
 
@@ -14,7 +14,7 @@
 | SOP skill | 已同步到 source workspace、template workspace、5 个 worker |
 | SOP skill 文件哈希 | `8abb40077222ab42b2f5c18fcff07606f7c1ee24` |
 | 公众号人设接口 | `GET/PUT /api/agents/snowchuang/wechat-article-persona` |
-| 服务器测试 | `npm test` 143 passed，`npm run check` passed |
+| 服务器测试 | `npm test` 144 passed，`npm run check` passed |
 
 SOP skill 已在以下位置可用：
 
