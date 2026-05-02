@@ -727,6 +727,177 @@ test("HTTP server overwrites SOUL.md and syncs it to worker workspaces", async (
   }
 });
 
+test("HTTP server exposes source WECHAT_ARTICLE_PERSONA.md for a logical agent", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const sourceWorkspace = path.join(dir, "source", "snowchuang");
+  const templateWorkspace = path.join(dir, "templates", "snowchuang");
+  fs.mkdirSync(sourceWorkspace, { recursive: true });
+  fs.mkdirSync(templateWorkspace, { recursive: true });
+  fs.writeFileSync(
+    path.join(sourceWorkspace, "WECHAT_ARTICLE_PERSONA.md"),
+    "# 公众号文章人设\n\n写作要亲切、实用，图片要有穿搭场景。",
+    "utf8"
+  );
+
+  const server = createApp({
+    token: "secret",
+    defaultAgentId: "main",
+    agentTemplates: {
+      snowchuang: {
+        logicalAgentId: "snowchuang",
+        sourceWorkspace,
+        templateWorkspace,
+        workers: [],
+        workerWorkspaces: {},
+      },
+    },
+    pool: new AgentPool({
+      defaultAgentId: "main",
+      queueTimeoutMs: 200,
+      stickyTtlMs: 1000,
+      agents: { main: ["main-1"] },
+    }),
+    queues: new ConversationQueueManager(),
+    sessionStore: new SessionStore({ dir: path.join(dir, "sessions"), historyLimit: 20 }),
+    runner: async () => ({ reply: "ok" }),
+  });
+
+  const port = await listen(server);
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/agents/snowchuang/wechat-article-persona`, {
+      headers: { Authorization: "Bearer secret" },
+    });
+
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.ok, true);
+    assert.equal(payload.agent_id, "snowchuang");
+    assert.equal(payload.persona.name, "WECHAT_ARTICLE_PERSONA.md");
+    assert.match(payload.persona.content, /图片要有穿搭场景/);
+    assert.equal(payload.persona.path, path.join(sourceWorkspace, "WECHAT_ARTICLE_PERSONA.md"));
+    assert.equal(payload.persona.source_workspace, sourceWorkspace);
+  } finally {
+    await close(server);
+  }
+});
+
+test("HTTP server overwrites WECHAT_ARTICLE_PERSONA.md and syncs it to template and workers", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const sourceWorkspace = path.join(dir, "source", "snowchuang");
+  const templateWorkspace = path.join(dir, "templates", "snowchuang");
+  const workerWorkspace = path.join(dir, "workers", "snowchuang-1");
+  fs.mkdirSync(sourceWorkspace, { recursive: true });
+  fs.mkdirSync(templateWorkspace, { recursive: true });
+  fs.mkdirSync(workerWorkspace, { recursive: true });
+  fs.writeFileSync(path.join(sourceWorkspace, "WECHAT_ARTICLE_PERSONA.md"), "old source persona", "utf8");
+  fs.writeFileSync(path.join(templateWorkspace, "WECHAT_ARTICLE_PERSONA.md"), "old template persona", "utf8");
+  fs.writeFileSync(path.join(workerWorkspace, "WECHAT_ARTICLE_PERSONA.md"), "old worker persona", "utf8");
+
+  const server = createApp({
+    token: "secret",
+    defaultAgentId: "main",
+    agentTemplates: {
+      snowchuang: {
+        logicalAgentId: "snowchuang",
+        sourceWorkspace,
+        templateWorkspace,
+        workers: ["snowchuang-1"],
+        workerWorkspaces: { "snowchuang-1": workerWorkspace },
+      },
+    },
+    pool: new AgentPool({
+      defaultAgentId: "main",
+      queueTimeoutMs: 200,
+      stickyTtlMs: 1000,
+      agents: { main: ["main-1"] },
+    }),
+    queues: new ConversationQueueManager(),
+    sessionStore: new SessionStore({ dir: path.join(dir, "sessions"), historyLimit: 20 }),
+    runner: async () => ({ reply: "ok" }),
+  });
+
+  const content = "# 公众号文章人设\n\n写公众号时保持生活化、可执行，配图提示要延续文章语气。";
+  const port = await listen(server);
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/agents/snowchuang/wechat-article-persona`, {
+      method: "PUT",
+      headers: {
+        Authorization: "Bearer secret",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ content }),
+    });
+
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.ok, true);
+    assert.equal(payload.persona.name, "WECHAT_ARTICLE_PERSONA.md");
+    assert.equal(payload.persona.path, path.join(sourceWorkspace, "WECHAT_ARTICLE_PERSONA.md"));
+    assert.equal(payload.sync.template.path, path.join(templateWorkspace, "WECHAT_ARTICLE_PERSONA.md"));
+    assert.equal(payload.sync.workers.length, 1);
+    assert.equal(fs.readFileSync(path.join(sourceWorkspace, "WECHAT_ARTICLE_PERSONA.md"), "utf8"), content);
+    assert.equal(fs.readFileSync(path.join(templateWorkspace, "WECHAT_ARTICLE_PERSONA.md"), "utf8"), content);
+    assert.equal(fs.readFileSync(path.join(workerWorkspace, "WECHAT_ARTICLE_PERSONA.md"), "utf8"), content);
+  } finally {
+    await close(server);
+  }
+});
+
+test("HTTP server accepts multipart WECHAT_ARTICLE_PERSONA.md uploads", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const sourceWorkspace = path.join(dir, "source", "snowchuang");
+  const templateWorkspace = path.join(dir, "templates", "snowchuang");
+  fs.mkdirSync(sourceWorkspace, { recursive: true });
+  fs.mkdirSync(templateWorkspace, { recursive: true });
+
+  const server = createApp({
+    token: "secret",
+    defaultAgentId: "main",
+    agentTemplates: {
+      snowchuang: {
+        logicalAgentId: "snowchuang",
+        sourceWorkspace,
+        templateWorkspace,
+        workers: [],
+        workerWorkspaces: {},
+      },
+    },
+    pool: new AgentPool({
+      defaultAgentId: "main",
+      queueTimeoutMs: 200,
+      stickyTtlMs: 1000,
+      agents: { main: ["main-1"] },
+    }),
+    queues: new ConversationQueueManager(),
+    sessionStore: new SessionStore({ dir: path.join(dir, "sessions"), historyLimit: 20 }),
+    runner: async () => ({ reply: "ok" }),
+  });
+
+  const port = await listen(server);
+  const form = new FormData();
+  form.set(
+    "personaFile",
+    new Blob(["# 公众号文章人设\n\n图片提示词要围绕文章主题，不单独跑偏。"], { type: "text/markdown" }),
+    "WECHAT_ARTICLE_PERSONA.md"
+  );
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/agents/snowchuang/wechat-article-persona`, {
+      method: "PUT",
+      headers: { Authorization: "Bearer secret" },
+      body: form,
+    });
+
+    assert.equal(response.status, 200);
+    assert.match(
+      fs.readFileSync(path.join(sourceWorkspace, "WECHAT_ARTICLE_PERSONA.md"), "utf8"),
+      /图片提示词要围绕文章主题/
+    );
+  } finally {
+    await close(server);
+  }
+});
+
 test("HTTP server accepts multipart SOUL.md uploads with mixed-case boundary", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
   const sourceWorkspace = path.join(dir, "source", "main");

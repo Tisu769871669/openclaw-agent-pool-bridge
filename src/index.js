@@ -9,6 +9,7 @@ const { createRetrievalAdapter } = require("./retrieval-adapter");
 const { SessionStore } = require("./session-store");
 const { createSoulDistiller } = require("./soul-distiller");
 const { createSoulManager } = require("./soul-manager");
+const { createWechatArticlePersonaManager } = require("./wechat-article-persona-manager");
 
 function createServerFromConfig(config) {
   const pool = new AgentPool({
@@ -90,6 +91,7 @@ module.exports = {
   createServerFromConfig,
   createSoulDistiller,
   createSoulManager,
+  createWechatArticlePersonaManager,
   loadConfig,
   loadDotEnv,
   runOpenClawAgent,

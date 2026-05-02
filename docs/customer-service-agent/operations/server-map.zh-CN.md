@@ -1,4 +1,4 @@
-# 客服服务器功能地图：雪创 / 苏丹
+# 通用客服 Agent 服务器功能地图：雪创 / 苏丹
 
 核验时间：2026-05-01 22:04 CST
 核验方式：SSH 只读检查服务器目录、systemd/PM2 状态、监听端口、agent-pool 配置、template/worker workspace 和本机 health endpoint。
@@ -32,7 +32,7 @@
 | template -> worker 同步 | 修改人格、prompt、knowledge、skills 后，应先改 canonical template，再同步到 worker | `/root/openclaw-agent-templates/<agent>` -> `/root/.openclaw/workers/workspace/<worker>` |
 | 运行态观测 | `/health` 返回服务状态；`/admin/pool` 返回 worker busy、队列、绑定 session、最近错误、prompt/retrieval 状态 | `curl http://127.0.0.1:<port>/health`，或 `agents-pool pool` |
 | prompt/retrieval adapter | 支持 `PROMPT_ADAPTER=template` 和 FAQ/RAG retrieval；是否启用由服务器 `.env` 决定 | `/opt/openclaw-agent-pool-bridge/.env` 仅看 key，不在文档记录值 |
-| 通用内容 skill | 公众号和文章生图 skill 以仓库根 `skills/` 为 canonical source；不同客服通过 profile 区分 | `skills/wechat-official-account`、`skills/article-image-generator` |
+| 通用内容 skill | 公众号和文章生图 skill 以仓库根 `skills/` 为 canonical source；不同客服通过 profile 和 `WECHAT_ARTICLE_PERSONA.md` 区分 | `skills/wechat-official-account`、`skills/article-image-generator` |
 | OpenClaw Gateway | 两台都有 `openclaw-gateway.service`；雪创 `127.0.0.1:8080/health` 返回 live，苏丹本次只确认 systemd active，未在 `8080/health` 得到响应 | 改动前先看 `systemctl status openclaw-gateway` 和实际监听端口 |
 
 ## 通用 agent-pool 当前配置

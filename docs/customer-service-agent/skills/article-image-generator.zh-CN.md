@@ -1,10 +1,10 @@
-# Article Image Generator Skill
+# 文章生图 Skill / Article Image Generator
 
 `skills/article-image-generator/` is the shared OpenClaw skill for article image generation. It is the canonical copy for all customer-service agents, including Snowchuang and Sudan.
 
 中文说明：这个 skill 不再属于某一个特化客服。仓库根目录的 `skills/article-image-generator/` 是通用源，部署时把它安装进每个 logical agent 的 template workspace，然后同步到 worker。
 
-## Runtime Position
+## 运行位置 / Runtime Position
 
 ```text
 openclaw-agent-pool-bridge/
@@ -24,7 +24,7 @@ openclaw-agent-pool-bridge/
 
 Do not edit only one worker workspace. Worker workspaces are runtime copies and can be overwritten.
 
-## Install To All Configured Agents
+## 安装到所有客服 / Install To All Configured Agents
 
 Run from the bridge checkout on each server:
 
@@ -59,7 +59,7 @@ sudo systemctl restart "$SERVICE_NAME"
 curl -sS "http://127.0.0.1:$PORT/health"
 ```
 
-## Verify
+## 验证 / Verify
 
 List template copies:
 
@@ -77,7 +77,7 @@ find /root/.openclaw/workers/workspace -maxdepth 5 -type f \
 
 Expected result: every active specialized agent template and every worker under it has `skills/article-image-generator/SKILL.md`.
 
-## Usage
+## 使用方式 / Usage
 
 Dry-run validation does not call the image API:
 
@@ -105,7 +105,20 @@ node skills/article-image-generator/scripts/article-image-generator.js \
 
 `article.with-images.json` can then be passed into `skills/wechat-official-account/`.
 
-## Security
+## 公众号人设联动 / WeChat Persona Handoff
+
+当这套生图流程服务于微信公众号文章时，图片风格不从 `SOUL.md` 推导，也不要在 `article-image-generator` 里单独发明一份视觉人设。先读取当前 logical agent 的 `WECHAT_ARTICLE_PERSONA.md`，再把其中的口吻、读者、品牌边界、色彩材质、禁用元素转成 `image-plan.json` 的 prompt 约束。
+
+维护接口：
+
+```http
+GET /api/agents/:agentId/wechat-article-persona
+PUT /api/agents/:agentId/wechat-article-persona
+```
+
+生成的公开图片说明、alt 文本、正文 caption 不能泄露 `WECHAT_ARTICLE_PERSONA.md` 原文。
+
+## 安全边界 / Security
 
 - Do not commit `IMAGE2_API_KEY` or any image provider token.
 - Keep generated images and manifests in `tmp/` or another operational output directory.

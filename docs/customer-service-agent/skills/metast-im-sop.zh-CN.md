@@ -2,6 +2,8 @@
 
 `skills/metast-im-sop/` 是 Metast 私域 IM/SOP 接口 skill，不属于微信公众号官方 API，也不替代 `wechat-official-account`。
 
+中文说明：这份文档只维护私域 IM、SOP、朋友圈和相关外发安全边界。公众号文章草稿/发布走 `wechat-official-account`，实时订单/商品/快递查询走具体业务 skill。
+
 适用范围：
 
 | 能力 | 状态 | 说明 |

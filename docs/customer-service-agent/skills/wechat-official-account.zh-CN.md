@@ -1,6 +1,31 @@
-# 微信公众号运营技能
+# 微信公众号运营 Skill
 
 本仓库包含通用 OpenClaw agentpool，也可以承载通用 skill 包。`skills/wechat-official-account/` 是微信公众号运营技能，不属于 bridge runtime。
+
+中文说明：这份文档只维护公众号文章、素材、草稿和发布相关能力。私域 IM/SOP、朋友圈和个人微信外发走 `metast-im-sop`；文章配图走 `article-image-generator`。
+
+## 公众号人设文件
+
+公众号文章和配图不再从 `SOUL.md` 推导人设。每个 logical agent 维护独立的 `WECHAT_ARTICLE_PERSONA.md`：
+
+```text
+/root/.openclaw/workspace-<agent>/WECHAT_ARTICLE_PERSONA.md
+  -> /root/openclaw-agent-templates/<agent>/WECHAT_ARTICLE_PERSONA.md
+  -> /root/.openclaw/workers/workspace/<worker>/WECHAT_ARTICLE_PERSONA.md
+```
+
+这份文件只约束公众号内容运营：文章口吻、栏目感、选题偏好、商业分寸、配图风格、image2 prompt 边界。客服日常聊天人格仍然放在 `SOUL.md`。
+
+示例模板在仓库根目录 `examples/WECHAT_ARTICLE_PERSONA.zh-CN.md`。运行时写入 logical agent workspace 时，文件名使用 `WECHAT_ARTICLE_PERSONA.md`。
+
+维护接口：
+
+```http
+GET {{BASE_URL}}/api/agents/:agentId/wechat-article-persona
+PUT {{BASE_URL}}/api/agents/:agentId/wechat-article-persona
+```
+
+写公众号文章前，先读取当前 logical agent 的 `WECHAT_ARTICLE_PERSONA.md`。需要生图时，把同一份约束带入 `image-plan.json`，不要单独创造另一套视觉人设。
 
 ## 使用方式
 

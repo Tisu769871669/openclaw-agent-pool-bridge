@@ -35,7 +35,9 @@ skills/wechat-official-account/
   references/
     wechat-api.md
 docs/
-  wechat-official-account.md
+  customer-service-agent/
+    skills/
+      wechat-official-account.zh-CN.md
 test/
   wechat-official-account/
     article-package.test.js
@@ -953,7 +955,7 @@ git commit -m "feat: add wechat official account CLI"
 **Files:**
 - Create: `skills/wechat-official-account/SKILL.md`
 - Create: `skills/wechat-official-account/references/wechat-api.md`
-- Create: `docs/wechat-official-account.md`
+- Create: `docs/customer-service-agent/skills/wechat-official-account.zh-CN.md`
 
 - [ ] **Step 1: 写 skill 入口文档**
 
@@ -1041,7 +1043,7 @@ WECHAT_MP_APP_SECRET=
 
 - [ ] **Step 3: 写仓库级说明**
 
-创建 `docs/wechat-official-account.md`：
+创建 `docs/customer-service-agent/skills/wechat-official-account.zh-CN.md`：
 
 ```markdown
 # 微信公众号运营技能
@@ -1083,7 +1085,7 @@ agents-pool sync main --source-workspace /root/.openclaw/workspace
 Run:
 
 ```bash
-Select-String -Path "skills/wechat-official-account/**/*.md","docs/wechat-official-account.md" -Pattern "待补|占位|password|token-value" -CaseSensitive:$false
+Select-String -Path "skills/wechat-official-account/**/*.md","docs/customer-service-agent/skills/wechat-official-account.zh-CN.md" -Pattern "待补|占位|password|token-value" -CaseSensitive:$false
 ```
 
 Expected: 没有匹配真实密钥或未完成占位标记。
@@ -1091,7 +1093,7 @@ Expected: 没有匹配真实密钥或未完成占位标记。
 - [ ] **Step 5: 提交**
 
 ```bash
-git add skills/wechat-official-account/SKILL.md skills/wechat-official-account/references/wechat-api.md docs/wechat-official-account.md
+git add skills/wechat-official-account/SKILL.md skills/wechat-official-account/references/wechat-api.md docs/customer-service-agent/skills/wechat-official-account.zh-CN.md
 git commit -m "docs: add wechat official account skill guide"
 ```
 

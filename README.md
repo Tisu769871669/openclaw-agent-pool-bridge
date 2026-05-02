@@ -14,10 +14,9 @@ It keeps the existing `/api/agents/chat` and `/api/agents/:agentId/chat` protoco
 | `docs/architecture.md` | 架构图、请求链路、pool/queue 行为、组件职责。 |
 | `docs/cli.md` | `agents-pool` CLI 的命令、参数、安全规则和示例。 |
 | `docs/integrations.md` | Sudan、TokyoClaw、WeCom 等业务桥接集成方式。 |
-| `docs/aliyun-oss-skill.md` | 通用客服安装阿里云 OSS skill、配置 `openclawlist` bucket、同步 worker 和排查。 |
-| `docs/openclaw-tts.md` | 通用客服配置 OpenClaw 原生 TTS、安装 `edge-tts` skill 和运行态验证。 |
-| `docs/article-image-generator.md` | 通用客服安装 `article-image-generator` / `gpt-image-2` 生图 skill，让所有特化 agent 复用。 |
-| `docs/metast-im-sop.md` | Metast 私域 IM/SOP skill，覆盖个微/企微联系人、SOP、朋友圈和真实外发安全边界。 |
+| `docs/customer-service-agent/README.zh-CN.md` | 通用客服 agent 中文文档入口，统一维护能力、服务器地图和重复内容归属。 |
+| `docs/customer-service-agent/operations/server-map.zh-CN.md` | 雪创 / 苏丹服务器功能地图、服务边界、路径、端口和排查入口。 |
+| `docs/customer-service-agent/skills/*.zh-CN.md` | 通用客服 OSS、TTS、文章生图、公众号、私域 IM/SOP 等可复用 skill 文档。 |
 | `docs/ops.local.zh-CN.md` | 中文/English-friendly 本地和服务器运维手册，包含状态检查、同步、排障、回滚。 |
 
 ## Why
@@ -36,7 +35,7 @@ Wechat and WeCom integrations often receive several customer messages at the sam
 
 See `docs/architecture.md` for the request flow, pool scheduling behavior, template workspace sync diagram, and editable Mermaid sources.
 
-中文说明：如果你想先看“请求如何从外部服务进入 worker pool”，先读 `docs/architecture.md`；如果你是在服务器上维护服务，直接读 `docs/ops.local.zh-CN.md`。
+中文说明：如果你想先看“请求如何从外部服务进入 worker pool”，先读 `docs/architecture.md`；如果你在维护通用客服 agent 的能力文档，读 `docs/customer-service-agent/README.zh-CN.md`；如果你是在服务器上维护服务，直接读 `docs/ops.local.zh-CN.md`。
 
 ## Quick Start
 
@@ -327,6 +326,56 @@ SOUL_DISTILLER_SKILL_REPO=https://github.com/titanwings/colleague-skill.git
 ```
 
 When `skills/dot-skill/SKILL.md` is missing, the bridge runs `git clone --depth 1` for that repo. `SOUL_DISTILLER_SKILL_SOURCE_URL` is only a raw `SKILL.md` fallback for restricted environments where `git clone` is unavailable.
+
+### WeChat Article Persona API
+
+`WECHAT_ARTICLE_PERSONA.md` is a logical-agent source file for WeChat official-account writing and image prompt style. It is intentionally separate from `SOUL.md`: `SOUL.md` controls客服日常聊天人格；`WECHAT_ARTICLE_PERSONA.md` controls公众号文章口吻、栏目感、商业分寸、选题偏好、配图风格和 image2 prompt 边界。
+
+An editable starter template is available at `examples/WECHAT_ARTICLE_PERSONA.zh-CN.md`; write its content into the target logical agent workspace as `WECHAT_ARTICLE_PERSONA.md`.
+
+Read the current file:
+
+```http
+GET /api/agents/:agentId/wechat-article-persona
+```
+
+Overwrite it with JSON:
+
+```bash
+curl -X PUT \
+  -H "Authorization: Bearer $AGENT_BRIDGE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"# WECHAT_ARTICLE_PERSONA\n\n公众号文章和配图的人设提示词"}' \
+  http://127.0.0.1:9070/api/agents/snowchuang/wechat-article-persona
+```
+
+Or upload a Markdown file:
+
+```bash
+curl -X PUT \
+  -H "Authorization: Bearer $AGENT_BRIDGE_TOKEN" \
+  -F "personaFile=@WECHAT_ARTICLE_PERSONA.md;type=text/markdown" \
+  http://127.0.0.1:9070/api/agents/snowchuang/wechat-article-persona
+```
+
+The write path updates the logical agent `sourceWorkspace` first, then syncs this one file to the template workspace and configured worker workspaces. Use `?syncWorkers=false` or JSON field `"syncWorkers": false` only when you intentionally want to update the source file first and sync later.
+
+Response shape:
+
+```json
+{
+  "ok": true,
+  "agent_id": "snowchuang",
+  "persona": {
+    "name": "WECHAT_ARTICLE_PERSONA.md",
+    "path": "/root/.openclaw/workspace-snowchuang/WECHAT_ARTICLE_PERSONA.md",
+    "content": "# WECHAT_ARTICLE_PERSONA\n...",
+    "bytes": 960,
+    "sha256": "...",
+    "source_workspace": "/root/.openclaw/workspace-snowchuang"
+  }
+}
+```
 
 ## Pool Configuration
 

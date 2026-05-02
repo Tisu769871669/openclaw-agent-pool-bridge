@@ -237,6 +237,25 @@ SOUL_DISTILLER_TIMEOUT_SECONDS=120
 
 中文判断：聊天记录里出现的订单号、手机号、wxid、当前价格、库存、活动时间等不应该被写进 `SOUL.md`。这些内容属于短期会话、FAQ/RAG 或实时业务 API；`SOUL.md` 只保留长期的人格、边界和服务方式。
 
+## WeChat Article Persona / 公众号内容人设文件
+
+The bridge also exposes authenticated maintenance endpoints for each logical agent's `WECHAT_ARTICLE_PERSONA.md`:
+
+```http
+GET /api/agents/:agentId/wechat-article-persona
+PUT /api/agents/:agentId/wechat-article-persona
+```
+
+中文说明：这份文件专门给 `wechat-official-account` 和 `article-image-generator` 联动使用，控制公众号文章口吻、栏目感、商业分寸、选题偏好、配图风格和 image2 prompt 边界。它不替代 `SOUL.md`，也不应该从 `SOUL.md` 自动拼接。
+
+The write path updates:
+
+1. `/root/.openclaw/workspace-<agent>/WECHAT_ARTICLE_PERSONA.md` or `/root/.openclaw/workspace/WECHAT_ARTICLE_PERSONA.md` for `main`
+2. `/root/openclaw-agent-templates/<agent>/WECHAT_ARTICLE_PERSONA.md`
+3. each configured `/root/.openclaw/workers/workspace/<worker>/WECHAT_ARTICLE_PERSONA.md`
+
+`PUT` accepts JSON (`content`, `persona`, `markdown`, or `prompt`), `text/plain`, and multipart file fields (`personaFile`, `wechatArticlePersonaFile`, `promptFile`, `file`, or `upload`). Use `?syncWorkers=false` only for staged source-only edits.
+
 ## Publishing Checklist / 发布前检查
 
 - Remove committed `.env` files from any source repository used for examples.

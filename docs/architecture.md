@@ -141,8 +141,10 @@ flowchart LR
 | `AgentPool` | Leases one worker per request, tracks busy workers, and returns 429 after queue timeout. |
 | `SessionStore` | Stores recent bridge-owned history so a conversation can move between workers safely. |
 | `OpenClawRunner` | Starts exactly one `openclaw agent` child process for one worker run and preserves rich output payloads when OpenClaw returns them. |
+| `SourceMdFileManager` | Shared helper for logical-agent root Markdown files that must be edited in `sourceWorkspace` and then mirrored to template/worker workspaces. |
 | `SoulManager` | Reads and overwrites each logical agent source `SOUL.md`, then syncs that file to the template and configured worker workspaces. |
 | `SoulDistiller` | Uses the shared `titanwings/colleague-skill` dot-skill repo plus an OpenClaw distiller agent to turn uploaded chat logs into a complete `SOUL.md`. |
+| `WechatArticlePersonaManager` | Reads and overwrites `WECHAT_ARTICLE_PERSONA.md`, the公众号文章和 image2 配图专用人设文件, without coupling it to `SOUL.md`. |
 | `agents-pool sync` | Copies one canonical logical-agent source workspace into its template and worker workspaces before serving traffic. |
 
 中文补充：
@@ -156,8 +158,10 @@ flowchart LR
 - `AgentPool` 解决“多个客户能否真正并发，以及 worker 全忙时怎么办”的问题。
 - `SessionStore` 解决“conversation 换 worker 后仍能看到最近上下文”的问题。
 - `OpenClawRunner` 只负责启动一次 worker agent，不承载调度逻辑；如果 OpenClaw JSON 返回 image/file/audio payload，会作为响应的 `outputs` 透出。
+- `SourceMdFileManager` 统一处理这类根目录 Markdown 文件，避免每个文件都重新写一套 source/template/worker 同步逻辑。
 - `SoulManager` 负责 `GET/PUT /api/agents/:agentId/soul`，先改 logical agent 源 workspace 的 `SOUL.md`，再同步模板和对应 worker 的 `SOUL.md`。
 - `SoulDistiller` 负责 `POST /api/agents/:agentId/soul/distill`，聊天记录上传后先经通用 skill 蒸馏，再写回 `SOUL.md`。
+- `WechatArticlePersonaManager` 负责 `GET/PUT /api/agents/:agentId/wechat-article-persona`，先改 logical agent 源 workspace 的 `WECHAT_ARTICLE_PERSONA.md`，再同步模板和对应 worker；公众号内容人设不从 `SOUL.md` 自动生成。
 
 ## Rich Chat Content / 富消息边界
 
