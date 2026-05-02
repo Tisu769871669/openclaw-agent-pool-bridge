@@ -5,6 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 const { createApp } = require("../src/http-server");
+const { createServerFromConfig } = require("../src/index");
 const { AgentPool } = require("../src/agent-pool");
 const { ConversationQueueManager } = require("../src/conversation-queue");
 const { DebounceQueue } = require("../src/debounce-queue");
@@ -776,6 +777,59 @@ test("HTTP server exposes source WECHAT_ARTICLE_PERSONA.md for a logical agent",
     assert.match(payload.persona.content, /图片要有穿搭场景/);
     assert.equal(payload.persona.path, path.join(sourceWorkspace, "WECHAT_ARTICLE_PERSONA.md"));
     assert.equal(payload.persona.source_workspace, sourceWorkspace);
+  } finally {
+    await close(server);
+  }
+});
+
+test("configured server wires WECHAT_ARTICLE_PERSONA.md manager from agent templates", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const sourceWorkspace = path.join(dir, "source", "main");
+  const templateWorkspace = path.join(dir, "templates", "main");
+  fs.mkdirSync(sourceWorkspace, { recursive: true });
+  fs.mkdirSync(templateWorkspace, { recursive: true });
+  fs.writeFileSync(
+    path.join(sourceWorkspace, "WECHAT_ARTICLE_PERSONA.md"),
+    "# 公众号文章人设\n\n用于生产入口回归测试。",
+    "utf8"
+  );
+
+  const server = createServerFromConfig({
+    token: "secret",
+    defaultAgentId: "main",
+    agents: { main: ["main-1"] },
+    agentTemplates: {
+      main: {
+        logicalAgentId: "main",
+        sourceWorkspace,
+        templateWorkspace,
+        workers: ["main-1"],
+        workerWorkspaces: {},
+      },
+    },
+    sessionStoreDir: path.join(dir, "sessions"),
+    sessionHistoryLimit: 20,
+    promptAdapter: "none",
+    retrievalEnabled: false,
+    queueTimeoutMs: 200,
+    stickyTtlMs: 1000,
+    soulAdminBodyLimitBytes: 5 * 1024 * 1024,
+    soulDistillerTimeoutSeconds: 10,
+    agentTimeoutSeconds: 10,
+    openclawBin: "openclaw",
+  });
+
+  const port = await listen(server);
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/agents/main/wechat-article-persona`, {
+      headers: { Authorization: "Bearer secret" },
+    });
+
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.ok, true);
+    assert.equal(payload.persona.source_workspace, sourceWorkspace);
+    assert.match(payload.persona.content, /生产入口回归测试/);
   } finally {
     await close(server);
   }

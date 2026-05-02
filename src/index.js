@@ -47,6 +47,10 @@ function createServerFromConfig(config) {
     defaultAgentId: config.defaultAgentId,
     agentTemplates: config.agentTemplates,
   });
+  const wechatArticlePersonaManager = createWechatArticlePersonaManager({
+    defaultAgentId: config.defaultAgentId,
+    agentTemplates: config.agentTemplates,
+  });
   const soulDistiller = createSoulDistiller({
     openclawBin: config.openclawBin,
     agentId: config.soulDistillerAgentId,
@@ -74,6 +78,7 @@ function createServerFromConfig(config) {
     retrievalAdapter,
     sessionStore,
     soulManager,
+    wechatArticlePersonaManager,
     soulDistiller,
     bodyLimitBytes: config.soulAdminBodyLimitBytes,
     runner,
