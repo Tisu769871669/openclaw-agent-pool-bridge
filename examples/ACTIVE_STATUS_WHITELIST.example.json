@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "tenantId": "tenant-demo",
+  "entries": [
+    {
+      "tenantId": "tenant-demo",
+      "sendId": "sender-demo",
+      "recvId": "recv-demo",
+      "conversationId": "conversation-demo",
+      "status": "enabled",
+      "note": "Only users in this file can receive proactive agent messages."
+    }
+  ]
+}

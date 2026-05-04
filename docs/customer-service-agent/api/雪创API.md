@@ -1,4 +1,4 @@
-# 雪创客服富媒体聊天、SOP Skill、SOUL 蒸馏与公众号人设接口文档
+# 雪创客服富媒体聊天、SOP Skill、SOUL 蒸馏与内容人设接口文档
 
 最后核验时间：2026-05-02 23:00 CST
 
@@ -15,7 +15,9 @@
 | SOP skill 文件哈希 | `8abb40077222ab42b2f5c18fcff07606f7c1ee24` |
 | 多模态 / 富媒体聊天 | `POST /api/agents/snowchuang/chat` 支持文本、emoji、图片、文件、语音元数据和 TTS 请求 |
 | 公众号人设接口 | `GET/PUT /api/agents/snowchuang/wechat-article-persona` |
-| 服务器测试 | `npm test` 144 passed，`npm run check` passed |
+| 朋友圈人设接口 | `GET/PUT /api/agents/snowchuang/wechat-moments-persona` |
+| 主动消息白名单接口 | `GET/PUT /api/agents/snowchuang/active-status-whitelist` |
+| 服务器测试 | 以当前部署验证输出为准 |
 
 SOP skill 已在以下位置可用：
 
@@ -32,7 +34,7 @@ SOP skill 已在以下位置可用：
 | 名称 | 用途 | 放在哪里 |
 | --- | --- | --- |
 | `CHAT_BRIDGE_TOKEN` | 调用雪创客服 chat 接口，覆盖普通聊天、富媒体聊天和 SOP skill 编排 | Postman 环境变量 |
-| `POOL_BRIDGE_TOKEN` | 调用 SOUL 和公众号人设读取、写入、蒸馏等维护接口 | Postman 环境变量 |
+| `POOL_BRIDGE_TOKEN` | 调用 SOUL、公众号人设、朋友圈人设、主动消息白名单读取、写入、蒸馏等维护接口 | Postman 环境变量 |
 | `METAST_MCP_KEY` / `METAST_MCP_SECRET` | 直连 Metast 私域 IM/SOP 上游 API | Postman 环境变量或服务器 env |
 
 公开 Base URL：
@@ -530,7 +532,149 @@ Authorization: Bearer {{POOL_BRIDGE_TOKEN}}
 - `?syncWorkers=false` 或 `"syncWorkers": false` 只会避免同步 template/workers，但仍会改 source workspace。
 - 这份文件只放公众号内容运营人设，不放客服聊天人格、订单号、手机号、wxid、实时价格、库存或客户聊天原文。
 
-## 8. Postman 环境变量
+## 8. 朋友圈文案与配图人设接口
+
+这组接口维护 Snowchuang logical agent 源 workspace 的 `WECHAT_MOMENTS_PERSONA.md`。它专门给朋友圈文案、image2 生图和 `metast-im-sop --action moment` 联动使用，不替代 `SOUL.md`，也不复用公众号文章人设。
+
+可先参考仓库里的 `examples/WECHAT_MOMENTS_PERSONA.zh-CN.md`，再通过下面的 `PUT` 接口写入 Snowchuang 源 workspace。
+
+### 8.1 读取 WECHAT_MOMENTS_PERSONA.md
+
+```http
+GET {{BASE_URL}}/api/agents/snowchuang/wechat-moments-persona
+Authorization: Bearer {{POOL_BRIDGE_TOKEN}}
+```
+
+预期返回：
+
+```json
+{
+  "ok": true,
+  "agent_id": "snowchuang",
+  "persona": {
+    "name": "WECHAT_MOMENTS_PERSONA.md",
+    "path": "/root/.openclaw/workspace-snowchuang/WECHAT_MOMENTS_PERSONA.md",
+    "content": "# WECHAT_MOMENTS_PERSONA\n...",
+    "bytes": 880,
+    "sha256": "...",
+    "source_workspace": "/root/.openclaw/workspace-snowchuang"
+  }
+}
+```
+
+### 8.2 用 JSON 覆盖 WECHAT_MOMENTS_PERSONA.md
+
+```http
+PUT {{BASE_URL}}/api/agents/snowchuang/wechat-moments-persona
+Authorization: Bearer {{POOL_BRIDGE_TOKEN}}
+Content-Type: application/json
+```
+
+Body：
+
+```json
+{
+  "content": "# WECHAT_MOMENTS_PERSONA\n\n这里填写朋友圈短文案、轻量 CTA、生活化配图和 image2 prompt 约束。",
+  "syncWorkers": true
+}
+```
+
+### 8.3 上传 Markdown 文件覆盖
+
+Postman Body 选择 `form-data`：
+
+| Key | Type | Value |
+| --- | --- | --- |
+| `personaFile` | File | 选择本地 `WECHAT_MOMENTS_PERSONA.md` |
+| `syncWorkers` | Text | `true` |
+
+请求：
+
+```http
+PUT {{BASE_URL}}/api/agents/snowchuang/wechat-moments-persona
+Authorization: Bearer {{POOL_BRIDGE_TOKEN}}
+```
+
+注意：
+
+- 默认会同步 source workspace、template workspace 和 5 个 worker。
+- `?syncWorkers=false` 或 `"syncWorkers": false` 只会避免同步 template/workers，但仍会改 source workspace。
+- `metast-im-sop` 已有朋友圈动作 `moment`；这份文件只控制朋友圈内容人设，真实外发仍要先 dry-run，再经用户明确批准后 submit。
+- 这份文件不放客服聊天人格、公众号长文人设、订单号、手机号、wxid、实时价格、库存或客户聊天原文。
+
+## 9. 主动消息白名单接口
+
+这组接口维护 Snowchuang logical agent 源 workspace 的 `ACTIVE_STATUS_WHITELIST.json`。它的作用是限制自动化客服主动发消息的对象：只有白名单里的用户，agent 才允许主动触达。
+
+注意：这不是 Metast 上游 active-status callback URL 本身；上游 URL 仍需在 `metast-im-sop` profile 里单独配置。
+
+### 9.1 读取 ACTIVE_STATUS_WHITELIST.json
+
+```http
+GET {{BASE_URL}}/api/agents/snowchuang/active-status-whitelist
+Authorization: Bearer {{POOL_BRIDGE_TOKEN}}
+```
+
+预期返回：
+
+```json
+{
+  "ok": true,
+  "agent_id": "snowchuang",
+  "whitelist": {
+    "name": "ACTIVE_STATUS_WHITELIST.json",
+    "path": "/root/.openclaw/workspace-snowchuang/ACTIVE_STATUS_WHITELIST.json",
+    "count": 2,
+    "entries": [
+      { "tenantId": "tenant-a", "recvId": "recv-1" },
+      { "tenantId": "tenant-a", "recvId": "recv-2" }
+    ],
+    "source_workspace": "/root/.openclaw/workspace-snowchuang"
+  }
+}
+```
+
+### 9.2 用 tenantId + content 覆盖白名单
+
+`content` 支持逗号、中文逗号、分号、换行或空格分隔多个 `recvId`。
+
+```http
+PUT {{BASE_URL}}/api/agents/snowchuang/active-status-whitelist
+Authorization: Bearer {{POOL_BRIDGE_TOKEN}}
+Content-Type: application/json
+```
+
+Body：
+
+```json
+{
+  "tenantId": "tenant-a",
+  "content": "recv-1,recv-2",
+  "syncWorkers": true
+}
+```
+
+### 9.3 用结构化 entries 覆盖白名单
+
+```json
+{
+  "entries": [
+    {
+      "tenantId": "tenant-a",
+      "sendId": "sender-1",
+      "recvId": "recv-1",
+      "conversationId": "conv-1",
+      "status": "enabled"
+    }
+  ]
+}
+```
+
+允许的目标标识字段包括 `recvId`、`userId`、`wxid`、`phone`、`conversationId`。主动触达前应至少命中其中一个字段。
+
+默认会同步 source workspace、template workspace 和 5 个 worker。`?syncWorkers=false` 或 `"syncWorkers": false` 只会避免同步 template/workers，但仍会改 source workspace。
+
+## 10. Postman 环境变量
 
 建议建一个 Postman Environment：
 
@@ -545,7 +689,7 @@ Authorization: Bearer {{POOL_BRIDGE_TOKEN}}
 | `SEND_ID` | 测试发送账号 ID |
 | `FRIEND_ID` | 测试接收好友 ID |
 
-## 9. 常见错误
+## 11. 常见错误
 
 | HTTP 状态 / 现象 | 常见原因 | 处理 |
 | --- | --- | --- |
@@ -556,15 +700,18 @@ Authorization: Bearer {{POOL_BRIDGE_TOKEN}}
 | 请求了 TTS 但没有音频输出 | `content.tts` 只是请求信号，OpenClaw TTS 或 TTS skill 未产出音频 | 检查响应里的 `tts.requested`，再查 OpenClaw TTS 配置 |
 | `SOUL.md content is required` | `PUT /soul` 没有传 `content` 或 `soulFile` | 用 raw JSON 或 form-data 文件 |
 | `WECHAT_ARTICLE_PERSONA.md content is required` | `PUT /wechat-article-persona` 没有传 `content` 或 `personaFile` | 用 raw JSON 或 form-data 文件 |
+| `WECHAT_MOMENTS_PERSONA.md content is required` | `PUT /wechat-moments-persona` 没有传 `content` 或 `personaFile` | 用 raw JSON 或 form-data 文件 |
+| `ACTIVE_STATUS_WHITELIST.json must include at least one user` | `PUT /active-status-whitelist` 没有传用户 ID | 传 `content` 或 `entries` |
 | `chat log content is required` | `POST /soul/distill` 没有传 `chatLog` 或 `chatFile` | 补充聊天记录 |
 | `soul_distiller_not_configured` | 服务器没有配置 `SOUL_DISTILLER_AGENT_ID` | 联系运维检查 pool bridge `.env` |
 | SOP 直连接口返回失败 | Metast mcp 凭据、账号 ID、好友 ID、权限或请求体不正确 | 先测好友列表，再测 SOP 创建 |
 
-## 10. 安全边界
+## 12. 安全边界
 
 - chat 调用 SOP skill 时，默认要求 dry-run。
 - 富媒体 chat 不接收 base64 / 二进制原文，只传 URL、mediaId 和必要元数据。
 - 客户图片、语音、文件 URL 不要长期裸露公网；生产建议使用短期签名 URL 或平台 mediaId。
 - 直连 Metast SOP API 是真实上游请求，Postman 测试必须使用测试账号和测试好友。
+- 自动化客服主动发消息前必须先查 `ACTIVE_STATUS_WHITELIST.json`，不在白名单里不能主动触达。
 - 不要把 `mcpKey`、`mcpSecret`、bridge token、wxid、手机号、订单号、真实聊天记录写入 Git、截图或公开文档。
 - 缺 endpoint 的能力不要猜路径。目前老私聊发消息、主动状态回调、知识库/聊天记录/朋友圈设定上传都需要上游确认 URL 后再配置。

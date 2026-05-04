@@ -1,3 +1,4 @@
+const { createActiveStatusWhitelistManager } = require("./active-status-whitelist-manager");
 const { AgentPool } = require("./agent-pool");
 const { ConversationQueueManager } = require("./conversation-queue");
 const { loadConfig, loadDotEnv } = require("./config");
@@ -10,6 +11,7 @@ const { SessionStore } = require("./session-store");
 const { createSoulDistiller } = require("./soul-distiller");
 const { createSoulManager } = require("./soul-manager");
 const { createWechatArticlePersonaManager } = require("./wechat-article-persona-manager");
+const { createWechatMomentsPersonaManager } = require("./wechat-moments-persona-manager");
 
 function createServerFromConfig(config) {
   const pool = new AgentPool({
@@ -51,6 +53,14 @@ function createServerFromConfig(config) {
     defaultAgentId: config.defaultAgentId,
     agentTemplates: config.agentTemplates,
   });
+  const wechatMomentsPersonaManager = createWechatMomentsPersonaManager({
+    defaultAgentId: config.defaultAgentId,
+    agentTemplates: config.agentTemplates,
+  });
+  const activeStatusWhitelistManager = createActiveStatusWhitelistManager({
+    defaultAgentId: config.defaultAgentId,
+    agentTemplates: config.agentTemplates,
+  });
   const soulDistiller = createSoulDistiller({
     openclawBin: config.openclawBin,
     agentId: config.soulDistillerAgentId,
@@ -79,6 +89,8 @@ function createServerFromConfig(config) {
     sessionStore,
     soulManager,
     wechatArticlePersonaManager,
+    wechatMomentsPersonaManager,
+    activeStatusWhitelistManager,
     soulDistiller,
     bodyLimitBytes: config.soulAdminBodyLimitBytes,
     runner,
@@ -91,12 +103,14 @@ module.exports = {
   DebounceQueue,
   SessionStore,
   createApp,
+  createActiveStatusWhitelistManager,
   createPromptAdapter,
   createRetrievalAdapter,
   createServerFromConfig,
   createSoulDistiller,
   createSoulManager,
   createWechatArticlePersonaManager,
+  createWechatMomentsPersonaManager,
   loadConfig,
   loadDotEnv,
   runOpenClawAgent,

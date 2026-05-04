@@ -377,6 +377,77 @@ Response shape:
 }
 ```
 
+### WeChat Moments Persona API
+
+`WECHAT_MOMENTS_PERSONA.md` is a logical-agent source file for personal WeChat Moments / WeCom customer Moments copy and image prompt style. It is separate from both `SOUL.md` and `WECHAT_ARTICLE_PERSONA.md`: `SOUL.md` controls客服日常聊天人格，`WECHAT_ARTICLE_PERSONA.md` controls公众号文章，`WECHAT_MOMENTS_PERSONA.md` controls朋友圈短文案、轻量 CTA、生活化配图和 image2 prompt 边界。
+
+`metast-im-sop` already has the final Moments interface through `--action moment`; use this persona file before drafting `moment.json` and image2 plans. An editable starter template is available at `examples/WECHAT_MOMENTS_PERSONA.zh-CN.md`; write its content into the target logical agent workspace as `WECHAT_MOMENTS_PERSONA.md`.
+
+Read the current file:
+
+```http
+GET /api/agents/:agentId/wechat-moments-persona
+```
+
+Overwrite it with JSON:
+
+```bash
+curl -X PUT \
+  -H "Authorization: Bearer $AGENT_BRIDGE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"# WECHAT_MOMENTS_PERSONA\n\n朋友圈文案和配图的人设提示词"}' \
+  http://127.0.0.1:9070/api/agents/snowchuang/wechat-moments-persona
+```
+
+Or upload a Markdown file:
+
+```bash
+curl -X PUT \
+  -H "Authorization: Bearer $AGENT_BRIDGE_TOKEN" \
+  -F "personaFile=@WECHAT_MOMENTS_PERSONA.md;type=text/markdown" \
+  http://127.0.0.1:9070/api/agents/snowchuang/wechat-moments-persona
+```
+
+The write path updates the logical agent `sourceWorkspace` first, then syncs this one file to the template workspace and configured worker workspaces. Use `?syncWorkers=false` or JSON field `"syncWorkers": false` only when you intentionally want to update the source file first and sync later.
+
+### Active Status Whitelist API
+
+`ACTIVE_STATUS_WHITELIST.json` is the allowlist for proactive agent messages. The agent should only主动发消息 to users listed in this file. It is separate from the upstream Metast active-status callback URL: this endpoint maintains local allowlist data; it does not call the upstream callback.
+
+Read the current whitelist:
+
+```http
+GET /api/agents/:agentId/active-status-whitelist
+```
+
+Overwrite it from a tenant-scoped content list:
+
+```bash
+curl -X PUT \
+  -H "Authorization: Bearer $AGENT_BRIDGE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"tenantId":"tenant-a","content":"recv-1,recv-2"}' \
+  http://127.0.0.1:9070/api/agents/snowchuang/active-status-whitelist
+```
+
+Structured entries are also supported:
+
+```json
+{
+  "entries": [
+    {
+      "tenantId": "tenant-a",
+      "sendId": "sender-1",
+      "recvId": "recv-1",
+      "conversationId": "conv-1",
+      "status": "enabled"
+    }
+  ]
+}
+```
+
+The write path updates `sourceWorkspace/ACTIVE_STATUS_WHITELIST.json`, then syncs it to the template workspace and configured worker workspaces. Use `?syncWorkers=false` or `"syncWorkers": false` only for staged source-only edits. A starter file is available at `examples/ACTIVE_STATUS_WHITELIST.example.json`.
+
 ## Pool Configuration
 
 `agent-pool.config.json` maps public logical agents to private worker agents:

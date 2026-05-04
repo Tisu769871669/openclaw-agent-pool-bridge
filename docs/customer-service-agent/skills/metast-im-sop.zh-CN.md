@@ -34,6 +34,33 @@ dry-run 不调用网络，只生成 payload 并写审计文件：
 - `logs/metast-im-sop/action-audit.jsonl`
 - `docs/metast-im-sop/action-log.md`
 
+## 朋友圈人设与发朋友圈链路
+
+`metast-im-sop` 里已经有朋友圈配套能力：`--action moment`。它负责把 `moment.json` 变成 Metast 个微/企微朋友圈 DTO，并在 submit 模式下调用对应 SOP endpoint。
+
+朋友圈内容人设不从 `SOUL.md` 走，也不复用公众号文章的 `WECHAT_ARTICLE_PERSONA.md`。每个 logical agent 维护独立的 `WECHAT_MOMENTS_PERSONA.md`：
+
+```text
+/root/.openclaw/workspace-<agent>/WECHAT_MOMENTS_PERSONA.md
+  -> /root/openclaw-agent-templates/<agent>/WECHAT_MOMENTS_PERSONA.md
+  -> /root/.openclaw/workers/workspace/<worker>/WECHAT_MOMENTS_PERSONA.md
+```
+
+维护接口：
+
+```http
+GET /api/agents/:agentId/wechat-moments-persona
+PUT /api/agents/:agentId/wechat-moments-persona
+```
+
+推荐链路：
+
+1. 读取 `WECHAT_MOMENTS_PERSONA.md`，生成朋友圈短文案和 image2 生图计划。
+2. 通过 image2 生成原创图片，并上传/托管成 Metast 可访问的图片 URL。
+3. 生成 `moment.json`，把文案写入 `content`，把图片 URL 写入 `media` / `mediaList`。
+4. 先用 `metast-im-sop --action moment --mode dry-run` 校验 payload 和审计日志。
+5. 只有用户明确批准真实外发，并且 profile 开启 `safety.allowSubmit=true`，才使用 `--mode submit --confirm-send`。
+
 ## Live Submit
 
 真实外发必须同时满足三个条件：
@@ -41,6 +68,7 @@ dry-run 不调用网络，只生成 payload 并写审计文件：
 1. 用户明确批准真实发送。
 2. profile 设置 `"safety": { "allowSubmit": true }`。
 3. 命令显式带 `--mode submit --confirm-send`。
+4. 主动触达类消息必须先确认目标用户在 `ACTIVE_STATUS_WHITELIST.json` 白名单里。
 
 ```bash
 METAST_MCP_KEY="$METAST_MCP_KEY" \
@@ -62,3 +90,39 @@ node skills/metast-im-sop/scripts/metast-im-sop.js \
 - 私聊、好友列表、SOP 群发、朋友圈：用 `skills/metast-im-sop/`。
 - 实时订单/商品/快递：仍优先用对应业务 skill，例如苏丹的 `metast-mcp` 或雪创的 `xuechuang-ordering`。
 - 缺 URL 的接口不要靠猜；等上游补齐后再写入 profile 或 reference。
+
+## 主动状态白名单
+
+`ACTIVE_STATUS_WHITELIST.json` 维护允许被自动化客服主动触达的用户。它和上游 active-status callback URL 是两层：白名单负责“能不能主动发”，callback URL 负责“怎么通知/发送”。
+
+维护接口：
+
+```http
+GET /api/agents/:agentId/active-status-whitelist
+PUT /api/agents/:agentId/active-status-whitelist
+```
+
+简单覆盖：
+
+```json
+{
+  "tenantId": "tenant-a",
+  "content": "recv-1,recv-2"
+}
+```
+
+结构化覆盖：
+
+```json
+{
+  "entries": [
+    {
+      "tenantId": "tenant-a",
+      "sendId": "sender-1",
+      "recvId": "recv-1",
+      "conversationId": "conv-1",
+      "status": "enabled"
+    }
+  ]
+}
+```

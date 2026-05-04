@@ -32,7 +32,8 @@
 | template -> worker 同步 | 修改人格、prompt、knowledge、skills 后，应先改 canonical template，再同步到 worker | `/root/openclaw-agent-templates/<agent>` -> `/root/.openclaw/workers/workspace/<worker>` |
 | 运行态观测 | `/health` 返回服务状态；`/admin/pool` 返回 worker busy、队列、绑定 session、最近错误、prompt/retrieval 状态 | `curl http://127.0.0.1:<port>/health`，或 `agents-pool pool` |
 | prompt/retrieval adapter | 支持 `PROMPT_ADAPTER=template` 和 FAQ/RAG retrieval；是否启用由服务器 `.env` 决定 | `/opt/openclaw-agent-pool-bridge/.env` 仅看 key，不在文档记录值 |
-| 通用内容 skill | 公众号和文章生图 skill 以仓库根 `skills/` 为 canonical source；不同客服通过 profile 和 `WECHAT_ARTICLE_PERSONA.md` 区分 | `skills/wechat-official-account`、`skills/article-image-generator` |
+| 通用内容 skill | 公众号、朋友圈和文章生图 skill 以仓库根 `skills/` 为 canonical source；不同客服通过 profile、`WECHAT_ARTICLE_PERSONA.md`、`WECHAT_MOMENTS_PERSONA.md` 区分 | `skills/wechat-official-account`、`skills/article-image-generator`、`skills/metast-im-sop` |
+| 主动消息白名单 | `ACTIVE_STATUS_WHITELIST.json` 维护允许被 agent 主动触达的用户 | `GET/PUT /api/agents/<agent>/active-status-whitelist`，同步到 template 和 worker |
 | OpenClaw Gateway | 两台都有 `openclaw-gateway.service`；雪创 `127.0.0.1:8080/health` 返回 live，苏丹本次只确认 systemd active，未在 `8080/health` 得到响应 | 改动前先看 `systemctl status openclaw-gateway` 和实际监听端口 |
 
 ## 通用 agent-pool 当前配置

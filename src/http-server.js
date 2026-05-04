@@ -1,5 +1,6 @@
 const http = require("node:http");
 
+const { createActiveStatusWhitelistManager } = require("./active-status-whitelist-manager");
 const { createApiError } = require("./errors");
 const { DEFAULT_BODY_LIMIT_BYTES, readParsedBody } = require("./http-body");
 const {
@@ -15,6 +16,7 @@ const {
 } = require("./message");
 const { createSoulManager } = require("./soul-manager");
 const { createWechatArticlePersonaManager } = require("./wechat-article-persona-manager");
+const { createWechatMomentsPersonaManager } = require("./wechat-moments-persona-manager");
 
 function createApp(options = {}) {
   const token = String(options.token || "").trim();
@@ -31,6 +33,14 @@ function createApp(options = {}) {
     agentTemplates: options.agentTemplates || {},
   });
   const wechatArticlePersonaManager = options.wechatArticlePersonaManager || createWechatArticlePersonaManager({
+    defaultAgentId,
+    agentTemplates: options.agentTemplates || {},
+  });
+  const wechatMomentsPersonaManager = options.wechatMomentsPersonaManager || createWechatMomentsPersonaManager({
+    defaultAgentId,
+    agentTemplates: options.agentTemplates || {},
+  });
+  const activeStatusWhitelistManager = options.activeStatusWhitelistManager || createActiveStatusWhitelistManager({
     defaultAgentId,
     agentTemplates: options.agentTemplates || {},
   });
@@ -136,6 +146,52 @@ function createApp(options = {}) {
           syncWorkers: extractSyncWorkers(parsed, route.searchParams),
         });
         return sendJson(res, 200, renderWechatArticlePersonaWrite(write));
+      }
+
+      if (route.type === "wechatMomentsPersonaGet") {
+        if (!authenticate(req, token)) {
+          throw createApiError(401, "unauthorized", "missing or invalid bearer token");
+        }
+        return sendJson(
+          res,
+          200,
+          renderWechatMomentsPersonaRead(wechatMomentsPersonaManager.read(route.logicalAgentId))
+        );
+      }
+
+      if (route.type === "wechatMomentsPersonaPut") {
+        if (!authenticate(req, token)) {
+          throw createApiError(401, "unauthorized", "missing or invalid bearer token");
+        }
+        const parsed = await readParsedBody(req, { limitBytes: bodyLimitBytes });
+        const content = extractWechatMomentsPersonaUploadContent(parsed);
+        const write = wechatMomentsPersonaManager.write(route.logicalAgentId, content, {
+          syncWorkers: extractSyncWorkers(parsed, route.searchParams),
+        });
+        return sendJson(res, 200, renderWechatMomentsPersonaWrite(write));
+      }
+
+      if (route.type === "activeStatusWhitelistGet") {
+        if (!authenticate(req, token)) {
+          throw createApiError(401, "unauthorized", "missing or invalid bearer token");
+        }
+        return sendJson(
+          res,
+          200,
+          renderActiveStatusWhitelistRead(activeStatusWhitelistManager.read(route.logicalAgentId))
+        );
+      }
+
+      if (route.type === "activeStatusWhitelistPut") {
+        if (!authenticate(req, token)) {
+          throw createApiError(401, "unauthorized", "missing or invalid bearer token");
+        }
+        const parsed = await readParsedBody(req, { limitBytes: bodyLimitBytes });
+        const payload = extractActiveStatusWhitelistUpload(parsed, route.searchParams);
+        const write = activeStatusWhitelistManager.write(route.logicalAgentId, payload, {
+          syncWorkers: extractSyncWorkers(parsed, route.searchParams),
+        });
+        return sendJson(res, 200, renderActiveStatusWhitelistWrite(write));
       }
 
       if (!authenticate(req, token)) {
@@ -292,6 +348,18 @@ function matchRoute(req, defaultAgentId) {
   if (req.method === "PUT" && url.pathname === "/api/agents/wechat-article-persona") {
     return { type: "wechatArticlePersonaPut", logicalAgentId: defaultAgentId, searchParams: url.searchParams };
   }
+  if (req.method === "GET" && url.pathname === "/api/agents/wechat-moments-persona") {
+    return { type: "wechatMomentsPersonaGet", logicalAgentId: defaultAgentId, searchParams: url.searchParams };
+  }
+  if (req.method === "PUT" && url.pathname === "/api/agents/wechat-moments-persona") {
+    return { type: "wechatMomentsPersonaPut", logicalAgentId: defaultAgentId, searchParams: url.searchParams };
+  }
+  if (req.method === "GET" && url.pathname === "/api/agents/active-status-whitelist") {
+    return { type: "activeStatusWhitelistGet", logicalAgentId: defaultAgentId, searchParams: url.searchParams };
+  }
+  if (req.method === "PUT" && url.pathname === "/api/agents/active-status-whitelist") {
+    return { type: "activeStatusWhitelistPut", logicalAgentId: defaultAgentId, searchParams: url.searchParams };
+  }
 
   const soulDistillMatch = /^\/api\/agents\/([^/]+)\/soul\/distill$/.exec(url.pathname);
   if (req.method === "POST" && soulDistillMatch) {
@@ -316,6 +384,24 @@ function matchRoute(req, defaultAgentId) {
     return {
       type: req.method === "GET" ? "wechatArticlePersonaGet" : "wechatArticlePersonaPut",
       logicalAgentId: decodeURIComponent(wechatArticlePersonaMatch[1]),
+      searchParams: url.searchParams,
+    };
+  }
+
+  const wechatMomentsPersonaMatch = /^\/api\/agents\/([^/]+)\/wechat-moments-persona$/.exec(url.pathname);
+  if ((req.method === "GET" || req.method === "PUT") && wechatMomentsPersonaMatch) {
+    return {
+      type: req.method === "GET" ? "wechatMomentsPersonaGet" : "wechatMomentsPersonaPut",
+      logicalAgentId: decodeURIComponent(wechatMomentsPersonaMatch[1]),
+      searchParams: url.searchParams,
+    };
+  }
+
+  const activeStatusWhitelistMatch = /^\/api\/agents\/([^/]+)\/active-status-whitelist$/.exec(url.pathname);
+  if ((req.method === "GET" || req.method === "PUT") && activeStatusWhitelistMatch) {
+    return {
+      type: req.method === "GET" ? "activeStatusWhitelistGet" : "activeStatusWhitelistPut",
+      logicalAgentId: decodeURIComponent(activeStatusWhitelistMatch[1]),
       searchParams: url.searchParams,
     };
   }
@@ -475,6 +561,66 @@ function renderWechatArticlePersonaWrite(write) {
   };
 }
 
+function renderWechatMomentsPersonaRead(persona) {
+  return {
+    ok: true,
+    agent_id: persona.logicalAgentId,
+    persona: {
+      name: persona.fileName,
+      path: persona.path,
+      content: persona.content,
+      bytes: persona.bytes,
+      sha256: persona.sha256,
+      source_workspace: persona.sourceWorkspace,
+    },
+  };
+}
+
+function renderWechatMomentsPersonaWrite(write) {
+  return {
+    ok: true,
+    agent_id: write.logicalAgentId,
+    persona: write.source,
+    sync: {
+      source: write.source,
+      template: write.template,
+      workers: write.workers,
+      sync_workers: write.syncWorkers,
+    },
+  };
+}
+
+function renderActiveStatusWhitelistRead(whitelist) {
+  return {
+    ok: true,
+    agent_id: whitelist.logicalAgentId,
+    whitelist: {
+      name: whitelist.fileName,
+      path: whitelist.path,
+      content: whitelist.content,
+      entries: whitelist.entries,
+      count: whitelist.entries.length,
+      bytes: whitelist.bytes,
+      sha256: whitelist.sha256,
+      source_workspace: whitelist.sourceWorkspace,
+    },
+  };
+}
+
+function renderActiveStatusWhitelistWrite(write) {
+  return {
+    ok: true,
+    agent_id: write.logicalAgentId,
+    whitelist: write.source,
+    sync: {
+      source: write.source,
+      template: write.template,
+      workers: write.workers,
+      sync_workers: write.syncWorkers,
+    },
+  };
+}
+
 function extractSoulUploadContent(parsed) {
   const body = parsed.body || {};
   const fields = parsed.fields || {};
@@ -507,6 +653,41 @@ function extractWechatArticlePersonaUploadContent(parsed) {
     fields.prompt,
     pickFileContent(files, ["personaFile", "wechatArticlePersonaFile", "promptFile", "file", "upload"]),
   ], "WECHAT_ARTICLE_PERSONA.md content is required");
+}
+
+function extractWechatMomentsPersonaUploadContent(parsed) {
+  const body = parsed.body || {};
+  const fields = parsed.fields || {};
+  const files = parsed.files || [];
+  return pickTextValue([
+    body.content,
+    body.persona,
+    body.markdown,
+    body.prompt,
+    decodeBase64(body.contentBase64 || body.personaBase64 || body.promptBase64),
+    fields.content,
+    fields.persona,
+    fields.markdown,
+    fields.prompt,
+    pickFileContent(files, ["personaFile", "wechatMomentsPersonaFile", "promptFile", "file", "upload"]),
+  ], "WECHAT_MOMENTS_PERSONA.md content is required");
+}
+
+function extractActiveStatusWhitelistUpload(parsed, searchParams) {
+  const body = parsed.body || {};
+  const fields = parsed.fields || {};
+  const files = parsed.files || [];
+  const tenantId = body.tenantId || fields.tenantId || searchParams?.get("tenantId") || "";
+  const fileContent = pickFileContent(files, ["whitelistFile", "activeStatusWhitelistFile", "file", "upload"]);
+  const content = body.content ?? fields.content ?? fileContent;
+  return {
+    tenantId,
+    content,
+    entries: body.entries,
+    users: body.users,
+    whitelist: body.whitelist,
+    allowlist: body.allowlist,
+  };
 }
 
 function extractChatUpload(parsed) {
@@ -588,8 +769,12 @@ module.exports = {
   renderSoulDistill,
   renderSoulRead,
   renderSoulWrite,
+  renderActiveStatusWhitelistRead,
+  renderActiveStatusWhitelistWrite,
   renderWechatArticlePersonaRead,
   renderWechatArticlePersonaWrite,
+  renderWechatMomentsPersonaRead,
+  renderWechatMomentsPersonaWrite,
   renderMetrics,
   safeRetrieve,
 };

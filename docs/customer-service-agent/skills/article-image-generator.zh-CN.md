@@ -118,6 +118,19 @@ PUT /api/agents/:agentId/wechat-article-persona
 
 生成的公开图片说明、alt 文本、正文 caption 不能泄露 `WECHAT_ARTICLE_PERSONA.md` 原文。
 
+## 朋友圈人设联动 / Moments Persona Handoff
+
+当这套生图流程服务于朋友圈时，不从 `SOUL.md` 或公众号文章人设推导图片风格。先读取当前 logical agent 的 `WECHAT_MOMENTS_PERSONA.md`，再把其中的口吻、场景、禁用元素、真实外发边界转成 `image-plan.json` 的 prompt 约束。
+
+维护接口：
+
+```http
+GET /api/agents/:agentId/wechat-moments-persona
+PUT /api/agents/:agentId/wechat-moments-persona
+```
+
+注意：`metast-im-sop --action moment` 的 `moment.json` 需要可访问图片 URL，不能只传本地生成文件路径。生成图片后先上传或托管，再写入 `media` / `mediaList`。
+
 ## 安全边界 / Security
 
 - Do not commit `IMAGE2_API_KEY` or any image provider token.

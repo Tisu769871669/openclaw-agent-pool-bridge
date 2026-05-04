@@ -13,7 +13,7 @@
 | 文章生图 | `skills/article-image-generator.zh-CN.md` | 通用文章生图 skill 的部署、调用、与公众号文章包的交接。 |
 | 公众号运营 | `skills/wechat-official-account.zh-CN.md` | 公众号文章包、素材上传、草稿、发布和 CTA 配置。 |
 | 私域 IM/SOP | `skills/metast-im-sop.zh-CN.md` | Metast 私域联系人、SOP、朋友圈和真实外发安全规则。 |
-| 雪创 SOP / SOUL / 公众号人设 API | `api/snowchuang-sop-soul-postman.zh-CN.md` | 给同事对接用的 Snowchuang SOP skill、SOUL 蒸馏、公众号人设文件和 Postman 测试文档。 |
+| 雪创 SOP / SOUL / 内容人设 / 主动白名单 API | `api/snowchuang-sop-soul-postman.zh-CN.md` | 给同事对接用的 Snowchuang SOP skill、SOUL 蒸馏、公众号人设、朋友圈人设、主动消息白名单和 Postman 测试文档。 |
 
 项目级 bridge 文档仍保留在上一级：
 

@@ -13,6 +13,7 @@ This skill operates the Metast private-domain IM/SOP API layer, not the official
 - Use `--mode submit --confirm-send` only after the user explicitly approves a real external action.
 - Keep `safety.allowSubmit` false in example or staging profiles. Enable it only in a real, intentionally configured profile.
 - Never put `mcpKey`, `mcpSecret`, tokens, wxids, phone numbers, customer chat logs, or order data into Git or public docs.
+- Before any proactive agent message or active-status callback, check the current logical agent's `ACTIVE_STATUS_WHITELIST.json`; do not proceed when the target user is not on the allowlist.
 
 ## Main Actions
 
@@ -72,6 +73,14 @@ node skills/metast-im-sop/scripts/metast-im-sop.js \
   --input-json moment.json
 ```
 
+## Moments Persona
+
+- When generating personal WeChat Moments or WeCom customer Moments, read the current logical agent workspace's `WECHAT_MOMENTS_PERSONA.md` before drafting `moment.json`.
+- This file controls Moments copy tone, CTA boundaries, image2 prompt style, and publish safety. Do not derive Moments persona from `SOUL.md` or `WECHAT_ARTICLE_PERSONA.md`.
+- Use `article-image-generator` / image2 only for original image assets; upload or otherwise host generated images first, then put accessible URLs into `moment.json` `media` / `mediaList`.
+- This skill is the final interface builder/sender for Moments. Keep content generation and image planning aligned with `WECHAT_MOMENTS_PERSONA.md`, then run `--action moment`.
+- Do not copy the persona prompt text into Moment content, audit logs, or public image captions.
+
 ## Submit Example
 
 Only run after explicit approval:
@@ -114,6 +123,13 @@ Profiles live in `profiles/*.json`:
 ```
 
 The SOP source did not include URL paths for the legacy `sendChatMesage` update or active-status callback. Configure those paths in the profile before using `send-message` or `active-status`.
+
+## Active Status Whitelist
+
+- `ACTIVE_STATUS_WHITELIST.json` is the local allowlist for proactive agent messages.
+- The bridge maintenance endpoints are `GET /api/agents/:agentId/active-status-whitelist` and `PUT /api/agents/:agentId/active-status-whitelist`.
+- A user can be listed by `recvId`, `userId`, `wxid`, `phone`, or `conversationId`; use `tenantId` whenever the upstream tenant is known.
+- This file is a gate before sending; it is not the upstream active-status callback endpoint itself.
 
 ## Common Mistakes
 

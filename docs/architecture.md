@@ -145,6 +145,8 @@ flowchart LR
 | `SoulManager` | Reads and overwrites each logical agent source `SOUL.md`, then syncs that file to the template and configured worker workspaces. |
 | `SoulDistiller` | Uses the shared `titanwings/colleague-skill` dot-skill repo plus an OpenClaw distiller agent to turn uploaded chat logs into a complete `SOUL.md`. |
 | `WechatArticlePersonaManager` | Reads and overwrites `WECHAT_ARTICLE_PERSONA.md`, the公众号文章和 image2 配图专用人设文件, without coupling it to `SOUL.md`. |
+| `WechatMomentsPersonaManager` | Reads and overwrites `WECHAT_MOMENTS_PERSONA.md`, the朋友圈文案和 image2 配图专用人设文件, before `metast-im-sop --action moment` sends or schedules Moments. |
+| `ActiveStatusWhitelistManager` | Reads and overwrites `ACTIVE_STATUS_WHITELIST.json`, the allowlist for users who may receive proactive agent messages. |
 | `agents-pool sync` | Copies one canonical logical-agent source workspace into its template and worker workspaces before serving traffic. |
 
 中文补充：
@@ -162,6 +164,8 @@ flowchart LR
 - `SoulManager` 负责 `GET/PUT /api/agents/:agentId/soul`，先改 logical agent 源 workspace 的 `SOUL.md`，再同步模板和对应 worker 的 `SOUL.md`。
 - `SoulDistiller` 负责 `POST /api/agents/:agentId/soul/distill`，聊天记录上传后先经通用 skill 蒸馏，再写回 `SOUL.md`。
 - `WechatArticlePersonaManager` 负责 `GET/PUT /api/agents/:agentId/wechat-article-persona`，先改 logical agent 源 workspace 的 `WECHAT_ARTICLE_PERSONA.md`，再同步模板和对应 worker；公众号内容人设不从 `SOUL.md` 自动生成。
+- `WechatMomentsPersonaManager` 负责 `GET/PUT /api/agents/:agentId/wechat-moments-persona`，先改 logical agent 源 workspace 的 `WECHAT_MOMENTS_PERSONA.md`，再同步模板和对应 worker；朋友圈内容人设不复用公众号文章人设。
+- `ActiveStatusWhitelistManager` 负责 `GET/PUT /api/agents/:agentId/active-status-whitelist`，维护 `ACTIVE_STATUS_WHITELIST.json`；主动发消息前应先确认目标用户在白名单里。
 
 ## Rich Chat Content / 富消息边界
 

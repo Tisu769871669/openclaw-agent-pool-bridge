@@ -256,6 +256,58 @@ The write path updates:
 
 `PUT` accepts JSON (`content`, `persona`, `markdown`, or `prompt`), `text/plain`, and multipart file fields (`personaFile`, `wechatArticlePersonaFile`, `promptFile`, `file`, or `upload`). Use `?syncWorkers=false` only for staged source-only edits.
 
+## WeChat Moments Persona / 朋友圈内容人设文件
+
+The bridge exposes the same maintenance pattern for each logical agent's `WECHAT_MOMENTS_PERSONA.md`:
+
+```http
+GET /api/agents/:agentId/wechat-moments-persona
+PUT /api/agents/:agentId/wechat-moments-persona
+```
+
+中文说明：`metast-im-sop` 已经有朋友圈最终发送/排程能力，即 `--action moment`。这份文件负责前置内容人设：朋友圈短文案、轻量 CTA、生活化配图、image2 prompt 边界和真实外发安全提醒。它不替代 `SOUL.md`，也不复用公众号文章人设。
+
+The write path updates:
+
+1. `/root/.openclaw/workspace-<agent>/WECHAT_MOMENTS_PERSONA.md` or `/root/.openclaw/workspace/WECHAT_MOMENTS_PERSONA.md` for `main`
+2. `/root/openclaw-agent-templates/<agent>/WECHAT_MOMENTS_PERSONA.md`
+3. each configured `/root/.openclaw/workers/workspace/<worker>/WECHAT_MOMENTS_PERSONA.md`
+
+`PUT` accepts JSON (`content`, `persona`, `markdown`, or `prompt`), `text/plain`, and multipart file fields (`personaFile`, `wechatMomentsPersonaFile`, `promptFile`, `file`, or `upload`). Use `?syncWorkers=false` only for staged source-only edits.
+
+## Active Status Whitelist / 主动发消息白名单
+
+The bridge exposes authenticated maintenance endpoints for each logical agent's proactive-message allowlist:
+
+```http
+GET /api/agents/:agentId/active-status-whitelist
+PUT /api/agents/:agentId/active-status-whitelist
+```
+
+中文说明：`ACTIVE_STATUS_WHITELIST.json` 是主动发消息白名单。只有在这份文件里的用户，agent 才允许主动发消息。它不是 Metast 上游 active-status callback 本身；上游 callback URL 仍然需要在 `metast-im-sop` profile 里单独配置。
+
+The write path updates:
+
+1. `/root/.openclaw/workspace-<agent>/ACTIVE_STATUS_WHITELIST.json` or `/root/.openclaw/workspace/ACTIVE_STATUS_WHITELIST.json` for `main`
+2. `/root/openclaw-agent-templates/<agent>/ACTIVE_STATUS_WHITELIST.json`
+3. each configured `/root/.openclaw/workers/workspace/<worker>/ACTIVE_STATUS_WHITELIST.json`
+
+`PUT` accepts either a tenant-scoped content list:
+
+```json
+{ "tenantId": "tenant-a", "content": "recv-1,recv-2" }
+```
+
+or structured entries:
+
+```json
+{
+  "entries": [
+    { "tenantId": "tenant-a", "sendId": "sender-1", "recvId": "recv-1", "conversationId": "conv-1", "status": "enabled" }
+  ]
+}
+```
+
 ## Publishing Checklist / 发布前检查
 
 - Remove committed `.env` files from any source repository used for examples.

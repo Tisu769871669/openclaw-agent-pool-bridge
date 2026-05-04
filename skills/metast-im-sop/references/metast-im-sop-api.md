@@ -180,3 +180,5 @@ The source file lists these body contracts but does not provide endpoint paths:
 | Active status callback | `sendId`, `recvId`, `status`, `tenantId`, `conversationId` |
 
 Do not invent endpoint paths. Add them to a profile after the upstream provider confirms the URLs.
+
+Bridge note: `/api/agents/:agentId/active-status-whitelist` only maintains the local proactive-message allowlist in `ACTIVE_STATUS_WHITELIST.json`; it does not replace or call the upstream active-status callback.
