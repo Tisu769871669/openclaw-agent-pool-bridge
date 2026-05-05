@@ -306,7 +306,48 @@ POST {{METAST_BASE_URL}}/prod-api/system/api/im/sendImSopChatMesage
 
 Body 结构同上，但 `accountId` / `friendId` 使用企微侧 ID。
 
-### 5.5 图片、文件、语音消息 item
+### 5.5 发送纯文本朋友圈 / 企微客户朋友圈
+
+朋友圈复用 SOP endpoint，但 Body 是 Moment DTO，不是 SOP 任务 DTO。
+
+个微朋友圈：
+
+```http
+POST {{METAST_BASE_URL}}/prod-api/system/api/im/sendWxSopChatMesage
+mcpKey: {{METAST_MCP_KEY}}
+mcpSecret: {{METAST_MCP_SECRET}}
+Content-Type: application/json
+```
+
+企微客户朋友圈把 URL 换成：
+
+```http
+POST {{METAST_BASE_URL}}/prod-api/system/api/im/sendImSopChatMesage
+```
+
+纯文本 Body：
+
+```json
+{
+  "planSendTime": null,
+  "visibleType": 1,
+  "headImage": "",
+  "content": "朋友圈纯文本测试：这是测试服发朋友圈测试内容，如看到请忽略。",
+  "title": "",
+  "contentUrl": "",
+  "mediaList": [],
+  "authorVids": ["{{SEND_ID}}"],
+  "xid": "{{FRIEND_ID}}"
+}
+```
+
+字段说明：
+
+- `authorVids`：发朋友圈的账号 ID；个微用 wxid，企微用数字账号 ID。
+- `xid`：可见客户/好友 ID，多个用英文逗号拼接。
+- `mediaList: []` 表示纯文本朋友圈；图片/视频朋友圈再填 `mediaList`。
+
+### 5.6 图片、文件、语音消息 item
 
 SOP `items` 中非文本消息的 `content` 是 JSON 字符串，不是嵌套对象。
 
