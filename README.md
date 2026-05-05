@@ -446,6 +446,18 @@ Structured entries are also supported:
 }
 ```
 
+Apply a single active-status event without replacing the whole file:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $AGENT_BRIDGE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"tenantId":"tenant-a","sendId":"sender-1","recvId":"recv-1","conversationId":"conv-1","status":"关闭"}' \
+  http://127.0.0.1:9070/api/agents/snowchuang/active-status-whitelist
+```
+
+`POST` merges by `tenantId`/`sendId` when present plus any matching target id (`recvId`, `userId`, `wxid`, `phone`, or `conversationId`). Active/open statuses add or update the user; disabled/closed statuses such as `关闭`, `disabled`, `off`, `0`, or `false` remove the matching user from the allowlist.
+
 The write path updates `sourceWorkspace/ACTIVE_STATUS_WHITELIST.json`, then syncs it to the template workspace and configured worker workspaces. Use `?syncWorkers=false` or `"syncWorkers": false` only for staged source-only edits. A starter file is available at `examples/ACTIVE_STATUS_WHITELIST.example.json`.
 
 ## Pool Configuration

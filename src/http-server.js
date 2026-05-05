@@ -194,6 +194,18 @@ function createApp(options = {}) {
         return sendJson(res, 200, renderActiveStatusWhitelistWrite(write));
       }
 
+      if (route.type === "activeStatusWhitelistPost") {
+        if (!authenticate(req, token)) {
+          throw createApiError(401, "unauthorized", "missing or invalid bearer token");
+        }
+        const parsed = await readParsedBody(req, { limitBytes: bodyLimitBytes });
+        const payload = extractActiveStatusWhitelistUpload(parsed, route.searchParams);
+        const write = activeStatusWhitelistManager.update(route.logicalAgentId, payload, {
+          syncWorkers: extractSyncWorkers(parsed, route.searchParams),
+        });
+        return sendJson(res, 200, renderActiveStatusWhitelistWrite(write));
+      }
+
       if (!authenticate(req, token)) {
         throw createApiError(401, "unauthorized", "missing or invalid bearer token");
       }
@@ -360,6 +372,9 @@ function matchRoute(req, defaultAgentId) {
   if (req.method === "PUT" && url.pathname === "/api/agents/active-status-whitelist") {
     return { type: "activeStatusWhitelistPut", logicalAgentId: defaultAgentId, searchParams: url.searchParams };
   }
+  if (req.method === "POST" && url.pathname === "/api/agents/active-status-whitelist") {
+    return { type: "activeStatusWhitelistPost", logicalAgentId: defaultAgentId, searchParams: url.searchParams };
+  }
 
   const soulDistillMatch = /^\/api\/agents\/([^/]+)\/soul\/distill$/.exec(url.pathname);
   if (req.method === "POST" && soulDistillMatch) {
@@ -398,9 +413,13 @@ function matchRoute(req, defaultAgentId) {
   }
 
   const activeStatusWhitelistMatch = /^\/api\/agents\/([^/]+)\/active-status-whitelist$/.exec(url.pathname);
-  if ((req.method === "GET" || req.method === "PUT") && activeStatusWhitelistMatch) {
+  if ((req.method === "GET" || req.method === "PUT" || req.method === "POST") && activeStatusWhitelistMatch) {
     return {
-      type: req.method === "GET" ? "activeStatusWhitelistGet" : "activeStatusWhitelistPut",
+      type: req.method === "GET"
+        ? "activeStatusWhitelistGet"
+        : req.method === "PUT"
+          ? "activeStatusWhitelistPut"
+          : "activeStatusWhitelistPost",
       logicalAgentId: decodeURIComponent(activeStatusWhitelistMatch[1]),
       searchParams: url.searchParams,
     };
@@ -677,12 +696,22 @@ function extractActiveStatusWhitelistUpload(parsed, searchParams) {
   const body = parsed.body || {};
   const fields = parsed.fields || {};
   const files = parsed.files || [];
-  const tenantId = body.tenantId || fields.tenantId || searchParams?.get("tenantId") || "";
+  const pick = (key) => body[key] ?? fields[key] ?? searchParams?.get(key);
+  const tenantId = pick("tenantId") || "";
   const fileContent = pickFileContent(files, ["whitelistFile", "activeStatusWhitelistFile", "file", "upload"]);
   const content = body.content ?? fields.content ?? fileContent;
   return {
     tenantId,
     content,
+    id: pick("id"),
+    sendId: pick("sendId"),
+    recvId: pick("recvId"),
+    userId: pick("userId"),
+    wxid: pick("wxid"),
+    phone: pick("phone"),
+    conversationId: pick("conversationId"),
+    status: pick("status"),
+    note: pick("note"),
     entries: body.entries,
     users: body.users,
     whitelist: body.whitelist,

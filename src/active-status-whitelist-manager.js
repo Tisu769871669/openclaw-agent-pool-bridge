@@ -5,6 +5,31 @@ const { cleanAgentId, sha256 } = require("./source-md-file-manager");
 const { createApiError } = require("./errors");
 
 const ACTIVE_STATUS_WHITELIST_FILE_NAME = "ACTIVE_STATUS_WHITELIST.json";
+const WHITELIST_TARGET_FIELDS = ["recvId", "userId", "wxid", "phone", "conversationId"];
+const DISABLED_STATUS_VALUES = new Set([
+  "0",
+  "false",
+  "off",
+  "disable",
+  "disabled",
+  "inactive",
+  "close",
+  "closed",
+  "stop",
+  "stopped",
+  "remove",
+  "removed",
+  "delete",
+  "deleted",
+  "block",
+  "blocked",
+  "关闭",
+  "关",
+  "停用",
+  "禁用",
+  "取消",
+  "下线",
+]);
 
 class ActiveStatusWhitelistManager {
   constructor(options = {}) {
@@ -49,6 +74,34 @@ class ActiveStatusWhitelistManager {
   write(logicalAgentId, payload, options = {}) {
     const agent = this.resolveAgent(logicalAgentId);
     const data = normalizeWhitelistPayload(payload);
+    return this.persist(agent, data, options);
+  }
+
+  update(logicalAgentId, payload, options = {}) {
+    const agent = this.resolveAgent(logicalAgentId);
+    const current = this.readExistingData(agent.sourceWorkspace);
+    const updates = normalizeWhitelistStatusUpdates(payload);
+    let entries = current.entries || [];
+
+    for (const update of updates) {
+      entries = entries.filter((entry) => !whitelistEntriesMatch(entry, update));
+      if (isWhitelistStatusEnabled(update.status)) {
+        entries.push(update);
+      }
+    }
+
+    const tenantId = cleanText(payload?.tenantId) || current.tenantId || "";
+    const data = normalizeWhitelistPayload(
+      {
+        ...(tenantId ? { tenantId } : {}),
+        entries,
+      },
+      { allowEmpty: true }
+    );
+    return this.persist(agent, data, options);
+  }
+
+  persist(agent, data, options = {}) {
     const content = `${JSON.stringify(data, null, 2)}\n`;
     const sourcePath = this.getFilePath(agent.sourceWorkspace);
     fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
@@ -65,6 +118,14 @@ class ActiveStatusWhitelistManager {
       workers,
       syncWorkers,
     };
+  }
+
+  readExistingData(workspace) {
+    const filePath = this.getFilePath(workspace);
+    if (!fs.existsSync(filePath)) {
+      return { version: 1, entries: [] };
+    }
+    return parseWhitelistContent(fs.readFileSync(filePath, "utf8"));
   }
 
   syncTemplate(agent, content) {
@@ -146,7 +207,7 @@ function parseWhitelistContent(content) {
     throw createApiError(400, "invalid_request", "ACTIVE_STATUS_WHITELIST.json content is required");
   }
   try {
-    return normalizeWhitelistPayload(JSON.parse(text));
+    return normalizeWhitelistPayload(JSON.parse(text), { allowEmpty: true });
   } catch (error) {
     if (error.statusCode) {
       throw error;
@@ -155,7 +216,7 @@ function parseWhitelistContent(content) {
   }
 }
 
-function normalizeWhitelistPayload(payload = {}) {
+function normalizeWhitelistPayload(payload = {}, options = {}) {
   const source = payload || {};
   const tenantId = cleanText(source.tenantId);
   const rawEntries = selectRawEntries(source);
@@ -180,7 +241,7 @@ function normalizeWhitelistPayload(payload = {}) {
     entries.push(entry);
   }
 
-  if (!entries.length) {
+  if (!entries.length && !options.allowEmpty) {
     throw createApiError(400, "invalid_request", "ACTIVE_STATUS_WHITELIST.json must include at least one user");
   }
 
@@ -216,6 +277,29 @@ function selectRawEntries(source) {
   return [];
 }
 
+function normalizeWhitelistStatusUpdates(payload = {}) {
+  const source = payload || {};
+  const tenantId = cleanText(source.tenantId);
+  const defaults = pickWhitelistEntryFields(source, tenantId);
+  let rawEntries = selectRawEntries(source);
+  if (!rawEntries.length && hasWhitelistTarget(source)) {
+    rawEntries = [source];
+  }
+
+  const updates = rawEntries.map((rawEntry) => normalizeWhitelistStatusEntry(rawEntry, defaults, tenantId));
+  if (!updates.length) {
+    throw createApiError(400, "invalid_request", "active status update requires recvId, userId, wxid, phone, or conversationId");
+  }
+  return updates;
+}
+
+function normalizeWhitelistStatusEntry(rawEntry, defaults, fallbackTenantId = "") {
+  if (typeof rawEntry === "string" || typeof rawEntry === "number") {
+    return normalizeWhitelistEntry({ ...defaults, recvId: cleanText(rawEntry) }, fallbackTenantId);
+  }
+  return normalizeWhitelistEntry({ ...defaults, ...(rawEntry || {}) }, fallbackTenantId);
+}
+
 function normalizeWhitelistEntry(rawEntry, fallbackTenantId = "") {
   if (typeof rawEntry === "string" || typeof rawEntry === "number") {
     const recvId = cleanText(rawEntry);
@@ -243,11 +327,56 @@ function normalizeWhitelistEntry(rawEntry, fallbackTenantId = "") {
     entry.recvId = cleanText(raw.id);
   }
 
-  const hasTarget = ["recvId", "userId", "wxid", "phone", "conversationId"].some((key) => entry[key]);
+  const hasTarget = WHITELIST_TARGET_FIELDS.some((key) => entry[key]);
   if (!hasTarget) {
     throw createApiError(400, "invalid_request", "whitelist entry requires recvId, userId, wxid, phone, or conversationId");
   }
   return entry;
+}
+
+function pickWhitelistEntryFields(raw, fallbackTenantId = "") {
+  const source = raw || {};
+  const entry = {};
+  for (const key of ["tenantId", "sendId", "recvId", "userId", "wxid", "phone", "conversationId", "status", "note"]) {
+    const value = cleanText(source[key]);
+    if (value) {
+      entry[key] = value;
+    }
+  }
+  if (!entry.tenantId && fallbackTenantId) {
+    entry.tenantId = fallbackTenantId;
+  }
+  if (!entry.recvId && source.id) {
+    entry.recvId = cleanText(source.id);
+  }
+  return entry;
+}
+
+function hasWhitelistTarget(raw) {
+  const source = raw || {};
+  return WHITELIST_TARGET_FIELDS.some((key) => cleanText(source[key])) || Boolean(cleanText(source.id));
+}
+
+function isWhitelistStatusEnabled(status) {
+  const value = cleanText(status).toLowerCase();
+  return !value || !DISABLED_STATUS_VALUES.has(value);
+}
+
+function whitelistEntriesMatch(existing, update) {
+  if (!sameOptionalField(existing, update, "tenantId") || !sameOptionalField(existing, update, "sendId")) {
+    return false;
+  }
+  return WHITELIST_TARGET_FIELDS.some((key) => {
+    const existingValue = cleanText(existing?.[key]);
+    const updateValue = cleanText(update?.[key]);
+    return existingValue && updateValue && existingValue === updateValue;
+  });
+}
+
+function sameOptionalField(left, right, key) {
+  const leftValue = cleanText(left?.[key]);
+  const rightValue = cleanText(right?.[key]);
+  return !leftValue || !rightValue || leftValue === rightValue;
 }
 
 function tryParseJson(value) {
@@ -268,4 +397,5 @@ module.exports = {
   createActiveStatusWhitelistManager,
   getActiveStatusWhitelistPath,
   normalizeWhitelistPayload,
+  normalizeWhitelistStatusUpdates,
 };

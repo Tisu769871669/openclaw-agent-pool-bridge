@@ -297,6 +297,7 @@ The bridge exposes authenticated maintenance endpoints for each logical agent's 
 ```http
 GET /api/agents/:agentId/active-status-whitelist
 PUT /api/agents/:agentId/active-status-whitelist
+POST /api/agents/:agentId/active-status-whitelist
 ```
 
 中文说明：`ACTIVE_STATUS_WHITELIST.json` 是主动发消息白名单。只有在这份文件里的用户，agent 才允许主动发消息。它不是 Metast 上游 active-status callback 本身；上游 callback URL 仍然需要在 `metast-im-sop` profile 里单独配置。
@@ -322,6 +323,20 @@ or structured entries:
   ]
 }
 ```
+
+`PUT` is a full replacement. `POST` is for active-status events from the upstream system:
+
+```json
+{
+  "tenantId": "tenant-a",
+  "sendId": "sender-1",
+  "recvId": "recv-1",
+  "conversationId": "conv-1",
+  "status": "关闭"
+}
+```
+
+For `POST`, open/enabled statuses add or update the target user. Closed/disabled statuses such as `关闭`, `disabled`, `off`, `0`, or `false` remove the matching user from `ACTIVE_STATUS_WHITELIST.json`.
 
 ## Publishing Checklist / 发布前检查
 

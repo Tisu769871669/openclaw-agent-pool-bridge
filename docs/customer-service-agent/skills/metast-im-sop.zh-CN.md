@@ -100,6 +100,7 @@ node skills/metast-im-sop/scripts/metast-im-sop.js \
 ```http
 GET /api/agents/:agentId/active-status-whitelist
 PUT /api/agents/:agentId/active-status-whitelist
+POST /api/agents/:agentId/active-status-whitelist
 ```
 
 简单覆盖：
@@ -110,6 +111,20 @@ PUT /api/agents/:agentId/active-status-whitelist
   "content": "recv-1,recv-2"
 }
 ```
+
+主动状态事件：
+
+```json
+{
+  "tenantId": "tenant-a",
+  "sendId": "sender-1",
+  "recvId": "recv-1",
+  "conversationId": "conv-1",
+  "status": "关闭"
+}
+```
+
+`PUT` 是全量覆盖；`POST` 是状态合并。`status` 为开启/active/enabled 时加入或更新白名单，为 `关闭`、`disabled`、`off`、`0`、`false` 等关闭状态时，从白名单移除同一个用户。
 
 结构化覆盖：
 

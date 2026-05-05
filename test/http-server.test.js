@@ -1436,6 +1436,196 @@ test("HTTP server accepts structured ACTIVE_STATUS_WHITELIST.json entries", asyn
   }
 });
 
+test("HTTP server adds ACTIVE_STATUS_WHITELIST.json entry from POST active status enabled event", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const sourceWorkspace = path.join(dir, "source", "snowchuang");
+  const templateWorkspace = path.join(dir, "templates", "snowchuang");
+  const workerWorkspace = path.join(dir, "workers", "snowchuang-1");
+  fs.mkdirSync(sourceWorkspace, { recursive: true });
+  fs.mkdirSync(templateWorkspace, { recursive: true });
+  fs.mkdirSync(workerWorkspace, { recursive: true });
+
+  const server = createApp({
+    token: "secret",
+    defaultAgentId: "main",
+    agentTemplates: {
+      snowchuang: {
+        logicalAgentId: "snowchuang",
+        sourceWorkspace,
+        templateWorkspace,
+        workers: ["snowchuang-1"],
+        workerWorkspaces: { "snowchuang-1": workerWorkspace },
+      },
+    },
+    pool: new AgentPool({
+      defaultAgentId: "main",
+      queueTimeoutMs: 200,
+      stickyTtlMs: 1000,
+      agents: { main: ["main-1"] },
+    }),
+    queues: new ConversationQueueManager(),
+    sessionStore: new SessionStore({ dir: path.join(dir, "sessions"), historyLimit: 20 }),
+    runner: async () => ({ reply: "ok" }),
+  });
+
+  const port = await listen(server);
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/agents/snowchuang/active-status-whitelist`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer secret",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        tenantId: "tenant-a",
+        sendId: "sender-1",
+        recvId: "recv-1",
+        conversationId: "conv-1",
+        status: "开启",
+      }),
+    });
+
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.whitelist.count, 1);
+    assert.deepEqual(payload.whitelist.entries, [
+      {
+        tenantId: "tenant-a",
+        sendId: "sender-1",
+        recvId: "recv-1",
+        conversationId: "conv-1",
+        status: "开启",
+      },
+    ]);
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(path.join(sourceWorkspace, "ACTIVE_STATUS_WHITELIST.json"), "utf8")).entries,
+      payload.whitelist.entries
+    );
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(path.join(templateWorkspace, "ACTIVE_STATUS_WHITELIST.json"), "utf8")).entries,
+      payload.whitelist.entries
+    );
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(path.join(workerWorkspace, "ACTIVE_STATUS_WHITELIST.json"), "utf8")).entries,
+      payload.whitelist.entries
+    );
+  } finally {
+    await close(server);
+  }
+});
+
+test("HTTP server removes ACTIVE_STATUS_WHITELIST.json entry from POST active status disabled event", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
+  const sourceWorkspace = path.join(dir, "source", "snowchuang");
+  const templateWorkspace = path.join(dir, "templates", "snowchuang");
+  const workerWorkspace = path.join(dir, "workers", "snowchuang-1");
+  fs.mkdirSync(sourceWorkspace, { recursive: true });
+  fs.mkdirSync(templateWorkspace, { recursive: true });
+  fs.mkdirSync(workerWorkspace, { recursive: true });
+  const initialWhitelist = {
+    version: 1,
+    entries: [
+      {
+        tenantId: "tenant-a",
+        sendId: "sender-1",
+        recvId: "recv-1",
+        conversationId: "conv-1",
+        status: "开启",
+      },
+      {
+        tenantId: "tenant-a",
+        sendId: "sender-1",
+        recvId: "recv-2",
+        conversationId: "conv-2",
+        status: "开启",
+      },
+    ],
+  };
+  fs.writeFileSync(
+    path.join(sourceWorkspace, "ACTIVE_STATUS_WHITELIST.json"),
+    JSON.stringify(initialWhitelist, null, 2),
+    "utf8"
+  );
+  fs.writeFileSync(
+    path.join(templateWorkspace, "ACTIVE_STATUS_WHITELIST.json"),
+    JSON.stringify(initialWhitelist, null, 2),
+    "utf8"
+  );
+  fs.writeFileSync(
+    path.join(workerWorkspace, "ACTIVE_STATUS_WHITELIST.json"),
+    JSON.stringify(initialWhitelist, null, 2),
+    "utf8"
+  );
+
+  const server = createApp({
+    token: "secret",
+    defaultAgentId: "main",
+    agentTemplates: {
+      snowchuang: {
+        logicalAgentId: "snowchuang",
+        sourceWorkspace,
+        templateWorkspace,
+        workers: ["snowchuang-1"],
+        workerWorkspaces: { "snowchuang-1": workerWorkspace },
+      },
+    },
+    pool: new AgentPool({
+      defaultAgentId: "main",
+      queueTimeoutMs: 200,
+      stickyTtlMs: 1000,
+      agents: { main: ["main-1"] },
+    }),
+    queues: new ConversationQueueManager(),
+    sessionStore: new SessionStore({ dir: path.join(dir, "sessions"), historyLimit: 20 }),
+    runner: async () => ({ reply: "ok" }),
+  });
+
+  const port = await listen(server);
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/agents/snowchuang/active-status-whitelist`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer secret",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        tenantId: "tenant-a",
+        sendId: "sender-1",
+        recvId: "recv-1",
+        conversationId: "conv-1",
+        status: "关闭",
+      }),
+    });
+
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.whitelist.count, 1);
+    assert.deepEqual(payload.whitelist.entries, [
+      {
+        tenantId: "tenant-a",
+        sendId: "sender-1",
+        recvId: "recv-2",
+        conversationId: "conv-2",
+        status: "开启",
+      },
+    ]);
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(path.join(sourceWorkspace, "ACTIVE_STATUS_WHITELIST.json"), "utf8")).entries,
+      payload.whitelist.entries
+    );
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(path.join(templateWorkspace, "ACTIVE_STATUS_WHITELIST.json"), "utf8")).entries,
+      payload.whitelist.entries
+    );
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(path.join(workerWorkspace, "ACTIVE_STATUS_WHITELIST.json"), "utf8")).entries,
+      payload.whitelist.entries
+    );
+  } finally {
+    await close(server);
+  }
+});
+
 test("HTTP server accepts multipart SOUL.md uploads with mixed-case boundary", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-pool-bridge-"));
   const sourceWorkspace = path.join(dir, "source", "main");

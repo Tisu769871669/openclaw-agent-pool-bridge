@@ -16,7 +16,7 @@
 | 多模态 / 富媒体聊天 | `POST /api/agents/snowchuang/chat` 支持文本、emoji、图片、文件、语音元数据和 TTS 请求 |
 | 公众号人设接口 | `GET/PUT /api/agents/snowchuang/wechat-article-persona` |
 | 朋友圈人设接口 | `GET/PUT /api/agents/snowchuang/wechat-moments-persona` |
-| 主动消息白名单接口 | `GET/PUT /api/agents/snowchuang/active-status-whitelist` |
+| 主动消息白名单接口 | `GET/PUT/POST /api/agents/snowchuang/active-status-whitelist` |
 | 服务器测试 | 以当前部署验证输出为准 |
 
 SOP skill 已在以下位置可用：
@@ -672,6 +672,42 @@ Body：
 
 允许的目标标识字段包括 `recvId`、`userId`、`wxid`、`phone`、`conversationId`。主动触达前应至少命中其中一个字段。
 
+### 9.4 用主动状态事件增删白名单用户
+
+`POST` 不会覆盖整份白名单，而是按本次状态事件合并：开启类状态会加入或更新同一个用户；关闭类状态会从白名单移除同一个用户。
+
+```http
+POST {{BASE_URL}}/api/agents/snowchuang/active-status-whitelist
+Authorization: Bearer {{POOL_BRIDGE_TOKEN}}
+Content-Type: application/json
+```
+
+Body：
+
+```json
+{
+  "tenantId": "tenant-a",
+  "sendId": "sender-1",
+  "recvId": "recv-1",
+  "conversationId": "conv-1",
+  "status": "关闭",
+  "syncWorkers": true
+}
+```
+
+对接方按 Java 组装时，对应字段是：
+
+```java
+JSONObject bodyObject = new JSONObject();
+bodyObject.put("sendId", sendId);
+bodyObject.put("recvId", recvId);
+bodyObject.put("status", status);
+bodyObject.put("tenantId", tenantId);
+bodyObject.put("conversationId", conversationId);
+```
+
+匹配规则：优先按 `tenantId` / `sendId` 缩小范围；只要 `recvId`、`userId`、`wxid`、`phone`、`conversationId` 其中任一目标标识命中，就认为是同一个用户。`status` 为 `关闭`、`disabled`、`off`、`0`、`false` 等关闭状态时会移除；其他开启/正常状态会加入或更新。
+
 默认会同步 source workspace、template workspace 和 5 个 worker。`?syncWorkers=false` 或 `"syncWorkers": false` 只会避免同步 template/workers，但仍会改 source workspace。
 
 ## 10. Postman 环境变量
@@ -702,6 +738,7 @@ Body：
 | `WECHAT_ARTICLE_PERSONA.md content is required` | `PUT /wechat-article-persona` 没有传 `content` 或 `personaFile` | 用 raw JSON 或 form-data 文件 |
 | `WECHAT_MOMENTS_PERSONA.md content is required` | `PUT /wechat-moments-persona` 没有传 `content` 或 `personaFile` | 用 raw JSON 或 form-data 文件 |
 | `ACTIVE_STATUS_WHITELIST.json must include at least one user` | `PUT /active-status-whitelist` 没有传用户 ID | 传 `content` 或 `entries` |
+| `active status update requires recvId, userId, wxid, phone, or conversationId` | `POST /active-status-whitelist` 没有传用户标识 | 至少传 `recvId`、`userId`、`wxid`、`phone`、`conversationId` 之一 |
 | `chat log content is required` | `POST /soul/distill` 没有传 `chatLog` 或 `chatFile` | 补充聊天记录 |
 | `soul_distiller_not_configured` | 服务器没有配置 `SOUL_DISTILLER_AGENT_ID` | 联系运维检查 pool bridge `.env` |
 | SOP 直连接口返回失败 | Metast mcp 凭据、账号 ID、好友 ID、权限或请求体不正确 | 先测好友列表，再测 SOP 创建 |
