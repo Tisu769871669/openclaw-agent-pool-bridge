@@ -105,6 +105,8 @@ test("loadConfig supports retrieval adapter environment options", () => {
       RETRIEVAL_PROVIDER: "faq",
       FAQ_FILE: "knowledge/faq.json",
       RAG_ENDPOINT: "https://rag.example.test/search",
+      RAG_API_KEY: "app-test-key",
+      RAG_REQUEST_FORMAT: "dify-workflow",
       RETRIEVAL_TOP_K: "4",
       RETRIEVAL_MIN_SCORE: "0.7",
     },
@@ -115,6 +117,8 @@ test("loadConfig supports retrieval adapter environment options", () => {
   assert.equal(config.retrievalProvider, "faq");
   assert.equal(config.faqFile, path.join(dir, "knowledge", "faq.json"));
   assert.equal(config.ragEndpoint, "https://rag.example.test/search");
+  assert.equal(config.ragApiKey, "app-test-key");
+  assert.equal(config.ragRequestFormat, "dify-workflow");
   assert.equal(config.retrievalTopK, 4);
   assert.equal(config.retrievalMinScore, 0.7);
 });

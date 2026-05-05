@@ -32,6 +32,8 @@ server.listen(config.port, () => {
         provider: config.retrievalProvider,
         faqFile: config.faqFile,
         ragEndpoint: config.ragEndpoint,
+        ragRequestFormat: config.ragRequestFormat,
+        ragApiKeyConfigured: Boolean(config.ragApiKey),
         topK: config.retrievalTopK,
         minScore: config.retrievalMinScore,
       },

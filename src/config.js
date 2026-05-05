@@ -62,6 +62,8 @@ function loadConfig(env = process.env, baseDir = process.cwd()) {
     retrievalProvider: cleanText(env.RETRIEVAL_PROVIDER || "faq").toLowerCase(),
     faqFile: cleanText(env.FAQ_FILE) ? resolvePath(cleanText(env.FAQ_FILE), baseDir) : "",
     ragEndpoint: cleanText(env.RAG_ENDPOINT),
+    ragApiKey: cleanText(env.RAG_API_KEY),
+    ragRequestFormat: cleanText(env.RAG_REQUEST_FORMAT || "").toLowerCase(),
     retrievalTopK: Number(env.RETRIEVAL_TOP_K || 3),
     retrievalMinScore: Number(env.RETRIEVAL_MIN_SCORE || 0.65),
     soulAdminBodyLimitBytes: Number(env.SOUL_ADMIN_BODY_LIMIT_BYTES || 5 * 1024 * 1024),

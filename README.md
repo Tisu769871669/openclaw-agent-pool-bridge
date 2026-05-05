@@ -563,7 +563,7 @@ Template variables:
 | `{{message_text}}` | Current user text only, without attachment or response-option summaries. |
 | `{{attachments}}` | Optional standalone attachment summary block for custom templates. |
 | `{{response_options}}` | Optional standalone response-option block, currently used for TTS requests. |
-| `{{retrieval_context}}` | Reserved for FAQ/RAG retrieval context; currently empty. |
+| `{{retrieval_context}}` | FAQ/RAG retrieval context returned by the retrieval adapter. |
 
 Example:
 
@@ -589,6 +589,8 @@ RETRIEVAL_ENABLED=false
 RETRIEVAL_PROVIDER=faq
 FAQ_FILE=
 RAG_ENDPOINT=
+RAG_API_KEY=
+RAG_REQUEST_FORMAT=generic
 RETRIEVAL_TOP_K=3
 RETRIEVAL_MIN_SCORE=0.65
 ```
@@ -621,9 +623,22 @@ RAG endpoint mode:
 RETRIEVAL_ENABLED=true
 RETRIEVAL_PROVIDER=rag
 RAG_ENDPOINT=https://your-rag-service.example/search
+RAG_REQUEST_FORMAT=generic
 ```
 
 The bridge sends a POST body with `query`, `logicalAgentId`, `conversationId`, `userId`, `topK`, and `minScore`. The endpoint can return either `{ "context": "..." }` or `{ "hits": [...] }`.
+
+Dify workflow mode:
+
+```env
+RETRIEVAL_ENABLED=true
+RETRIEVAL_PROVIDER=dify
+RAG_ENDPOINT=https://your-dify.example/v1/workflows/run
+RAG_API_KEY=app_xxx
+RAG_REQUEST_FORMAT=dify-workflow
+```
+
+The bridge sends Dify workflow inputs named `query`, `logical_agent_id`, `conversation_id`, `user_id`, `top_k`, and `min_score`, with `response_mode=blocking`. The workflow should return `data.outputs.answer_context`; `hits_json` is optional and is used only for structured hit visibility. Use the final HTTPS endpoint directly, not an HTTP URL that redirects, because some clients drop authorization during redirects.
 
 中文说明：苏丹式 prompt 现在可以先通过模板 adapter 迁移，不需要写死进开源核心。FAQ/RAG 已经作为 retrieval adapter 接入，命中内容会填入 `{{retrieval_context}}`。检索失败时 chat 请求会降级为空上下文继续跑，错误会出现在 `/admin/pool` 和 `agents-pool pool` 的 retrieval 状态里。
 

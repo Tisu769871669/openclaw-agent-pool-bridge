@@ -165,6 +165,8 @@ RETRIEVAL_ENABLED=false
 RETRIEVAL_PROVIDER=faq
 FAQ_FILE=
 RAG_ENDPOINT=
+RAG_API_KEY=
+RAG_REQUEST_FORMAT=generic
 RETRIEVAL_TOP_K=3
 RETRIEVAL_MIN_SCORE=0.65
 ```
@@ -195,9 +197,22 @@ RAG endpoint mode:
 RETRIEVAL_ENABLED=true
 RETRIEVAL_PROVIDER=rag
 RAG_ENDPOINT=https://your-rag-service.example/search
+RAG_REQUEST_FORMAT=generic
 ```
 
 The RAG endpoint receives `query`, `logicalAgentId`, `conversationId`, `userId`, `topK`, and `minScore`. It may return either a ready-made `context` string or a `hits` array.
+
+Dify workflow mode:
+
+```env
+RETRIEVAL_ENABLED=true
+RETRIEVAL_PROVIDER=dify
+RAG_ENDPOINT=https://your-dify.example/v1/workflows/run
+RAG_API_KEY=app_xxx
+RAG_REQUEST_FORMAT=dify-workflow
+```
+
+The Dify workflow receives `query`, `logical_agent_id`, `conversation_id`, `user_id`, `top_k`, and `min_score` under `inputs`. Return `answer_context` from the workflow output node; optionally return `hits_json` as a JSON string for debugging. When one workflow serves several customer-service agents, branch inside Dify by `logical_agent_id`.
 
 中文说明：苏丹 prompt 可以迁，但不要写死进开源核心。更好的方式是让每个客服在 env 或配置里选择 prompt adapter、FAQ/RAG provider 和参数；FAQ/RAG 命中内容会填进 `{{retrieval_context}}`。检索服务短暂失败时，bridge 会记录错误并继续让客服回复，避免线上聊天直接失败。
 

@@ -97,6 +97,75 @@ test("rag retrieval adapter posts query to an endpoint", async () => {
   assert.match(result.context, /会员费是 138 元/);
 });
 
+test("dify retrieval adapter posts workflow inputs and reads answer_context", async () => {
+  const requests = [];
+  const adapter = createRetrievalAdapter({
+    enabled: true,
+    provider: "dify",
+    ragEndpoint: "https://dify.example.test/v1/workflows/run",
+    ragApiKey: "app-test-key",
+    topK: 3,
+    minScore: 0.6,
+    fetch: async (url, options) => {
+      requests.push({ url, options });
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          task_id: "task-1",
+          data: {
+            status: "succeeded",
+            outputs: {
+              answer_context: "[知识1]\n会员费是 138 元。",
+              hits_json: JSON.stringify([
+                {
+                  content: "会员费是 138 元。",
+                  score: 0.91,
+                  source: "faq",
+                },
+              ]),
+            },
+          },
+        }),
+      };
+    },
+  });
+
+  const result = await adapter.retrieve({
+    logicalAgentId: "snowchuang",
+    conversationId: "customer-1",
+    userId: "wxid-1",
+    message: "会员多少钱",
+  });
+
+  assert.equal(requests[0].url, "https://dify.example.test/v1/workflows/run");
+  assert.equal(requests[0].options.headers.Authorization, "Bearer app-test-key");
+  const body = JSON.parse(requests[0].options.body);
+  assert.equal(body.response_mode, "blocking");
+  assert.equal(body.user, "wxid-1");
+  assert.deepEqual(body.inputs, {
+    query: "会员多少钱",
+    logical_agent_id: "snowchuang",
+    conversation_id: "customer-1",
+    user_id: "wxid-1",
+    top_k: 3,
+    min_score: 0.6,
+  });
+  assert.equal(result.context, "[知识1]\n会员费是 138 元。");
+  assert.deepEqual(result.hits, [
+    {
+      title: "",
+      question: "",
+      answer: "会员费是 138 元。",
+      text: "会员费是 138 元。",
+      source: "faq",
+      score: 0.91,
+    },
+  ]);
+  assert.equal(adapter.snapshot().provider, "dify");
+  assert.equal(adapter.snapshot().requestFormat, "dify-workflow");
+});
+
 test("formatRetrievalContext keeps empty hits empty", () => {
   assert.equal(formatRetrievalContext([]), "");
 });

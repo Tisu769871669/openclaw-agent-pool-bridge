@@ -42,6 +42,8 @@ function createServerFromConfig(config) {
     provider: config.retrievalProvider,
     faqFile: config.faqFile,
     ragEndpoint: config.ragEndpoint,
+    ragApiKey: config.ragApiKey,
+    requestFormat: config.ragRequestFormat,
     topK: config.retrievalTopK,
     minScore: config.retrievalMinScore,
   });
