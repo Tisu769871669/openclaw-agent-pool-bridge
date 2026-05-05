@@ -5,6 +5,12 @@
 
 本文只记录主机、服务、路径和功能边界，不记录 SSH 密码、token、API key 或业务密钥。
 
+## 外贸测试服变更记录
+
+| 时间 | 服务 | 变更 | 核验方式 |
+| --- | --- | --- | --- |
+| 2026-05-05 21:42 CST | `https://hermes.metast.cn/agent-pool`，PM2 `openclaw-agent-pool-bridge` | 开启测试服通用防抖，并把用户连续发言静默窗口调到 `DEBOUNCE_WINDOW_MS=15000`、`DEBOUNCE_MAX_WAIT_MS=15000` | 公网 `GET /agent-pool/health` 返回 `debounce.enabled=true`、`windowMs=15000`、`maxWaitMs=15000` |
+
 ## 总览
 
 | 客服 | 公网 IP | 服务器主机名 | 通用 agent-pool | 特化项目来源 | 当前入口形态 |
