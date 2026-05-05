@@ -143,3 +143,54 @@ test("submit mode posts built payload when profile allows live send", async () =
   assert.equal(seen[0].url, "https://lx.metast.cn/prod-api/system/api/im/sendImSopChatMesage");
   assert.equal(JSON.parse(seen[0].options.body).taskName, "单事件");
 });
+
+test("submit mode can load credentials from root .env", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "metast-sop-env-"));
+  const inputPath = path.join(dir, "task.json");
+  const profiles = path.join(dir, "profiles");
+  const seen = [];
+  fs.mkdirSync(profiles);
+  fs.writeFileSync(path.join(dir, ".env"), [
+    "METAST_MCP_KEY=key-from-env-file",
+    "METAST_MCP_SECRET=\"secret#from-env-file\"",
+    "",
+  ].join("\n"));
+  fs.writeFileSync(path.join(profiles, "live.json"), JSON.stringify({
+    id: "live",
+    baseUrl: "https://lx.metast.cn",
+    credentialEnv: { mcpKey: "METAST_MCP_KEY", mcpSecret: "METAST_MCP_SECRET" },
+    safety: { allowSubmit: true },
+  }));
+  fs.writeFileSync(inputPath, JSON.stringify({
+    sopNo: "S0",
+    taskName: "单事件-env",
+    contacts: [{ accountId: "sender", friendId: "friend" }],
+    events: [{ content: "第一条" }],
+  }));
+
+  const result = await main([
+    "--mode", "submit",
+    "--action", "sop-task",
+    "--platform", "wx",
+    "--profile", "live",
+    "--input-json", inputPath,
+    "--root-dir", dir,
+    "--profiles-dir", profiles,
+    "--confirm-send",
+  ], {}, {
+    fetchImpl: async (url, options) => {
+      seen.push({ url, options });
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify({ code: 200, msg: "ok" });
+        },
+      };
+    },
+  });
+
+  assert.equal(result.record.status, "submitted");
+  assert.equal(seen[0].options.headers.mcpKey, "key-from-env-file");
+  assert.equal(seen[0].options.headers.mcpSecret, "secret#from-env-file");
+});

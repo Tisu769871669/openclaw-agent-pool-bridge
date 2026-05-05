@@ -34,6 +34,7 @@ function parseArgs(argv) {
     else if (arg === "--profile") args.profile = argv[++index];
     else if (arg === "--input-json") args.inputJson = argv[++index];
     else if (arg === "--root-dir") args.rootDir = argv[++index];
+    else if (arg === "--env-file") args.envFile = argv[++index];
     else if (arg === "--profiles-dir") args.profilesDir = argv[++index];
     else if (arg === "--page-no") args.pageNo = argv[++index];
     else if (arg === "--page-size") args.pageSize = argv[++index];
@@ -53,6 +54,52 @@ function readJson(filePath) {
   if (!filePath) throw new Error("--input-json is required for this action");
   const raw = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
   return JSON.parse(raw);
+}
+
+function loadEnvFile(filePath, env = process.env) {
+  if (!filePath || !fs.existsSync(filePath)) return;
+  const raw = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const index = trimmed.indexOf("=");
+    if (index === -1) continue;
+    const key = trimmed.slice(0, index).trim();
+    const value = parseEnvValue(trimmed.slice(index + 1).trim());
+    if (key && env[key] === undefined) env[key] = value;
+  }
+}
+
+function parseEnvValue(value) {
+  if (!value) return "";
+  if (
+    (value.startsWith("\"") && value.endsWith("\"")) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value.slice(1, -1);
+    }
+  }
+  return value;
+}
+
+function loadRuntimeEnv(args, env = process.env, options = {}) {
+  const cwd = options.cwd || process.cwd();
+  const candidates = [
+    args.envFile,
+    env.METAST_IM_SOP_ENV_FILE,
+    path.join(resolveFromCwd(args.rootDir, cwd), ".env"),
+    path.join(cwd, ".env"),
+  ].filter(Boolean);
+  const seen = new Set();
+  for (const candidate of candidates) {
+    const resolved = resolveFromCwd(candidate, cwd);
+    if (seen.has(resolved)) continue;
+    seen.add(resolved);
+    loadEnvFile(resolved, env);
+  }
 }
 
 function buildRequest(args, profile, options = {}) {
@@ -126,6 +173,7 @@ function createClient(profile, env, fetchImpl) {
 
 async function main(argv = process.argv.slice(2), env = process.env, options = {}) {
   const args = parseArgs(argv);
+  loadRuntimeEnv(args, env, options);
   if (!["dry-run", "submit"].includes(args.mode)) {
     throw new Error("--mode must be dry-run or submit");
   }
@@ -203,6 +251,9 @@ if (require.main === module) {
 module.exports = {
   buildRequest,
   createClient,
+  loadEnvFile,
+  loadRuntimeEnv,
   main,
   parseArgs,
+  parseEnvValue,
 };
