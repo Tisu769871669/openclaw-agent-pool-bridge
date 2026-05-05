@@ -9,6 +9,7 @@ const {
   buildSoulDistillationPrompt,
   createSoulDistiller,
   ensureSoulDistillerSkill,
+  looksLikeProviderError,
   loadDotSkillContext,
   sanitizeDistilledSoul,
 } = require("../src/soul-distiller");
@@ -123,4 +124,13 @@ test("buildSoulDistillationPrompt keeps volatile facts out of SOUL instructions"
 
 test("sanitizeDistilledSoul rejects empty output", () => {
   assert.throws(() => sanitizeDistilledSoul("  "), /empty content/);
+});
+
+test("sanitizeDistilledSoul rejects provider error output before SOUL write", () => {
+  assert.equal(looksLikeProviderError("HTTP 401: invalid access token or token expired"), true);
+  assert.equal(looksLikeProviderError("400 Your account does not have a valid subscription"), true);
+  assert.throws(
+    () => sanitizeDistilledSoul("HTTP 401: invalid access token or token expired"),
+    /provider\/API error/
+  );
 });

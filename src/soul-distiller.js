@@ -229,7 +229,22 @@ function sanitizeDistilledSoul(value) {
   if (!text) {
     throw createApiError(502, "soul_distillation_empty", "Soul distiller returned empty content");
   }
+  if (looksLikeProviderError(text)) {
+    throw createApiError(502, "soul_distillation_failed", "Soul distiller returned a provider/API error");
+  }
   return text;
+}
+
+function looksLikeProviderError(text) {
+  const normalized = String(text || "").trim();
+  return [
+    /^HTTP\s+\d{3}\s*:/i,
+    /^(?:400|401|403|429|500|502|503|504)\s+/,
+    /\binvalid access token\b/i,
+    /\bapi key\b.*\b(?:invalid|expired|incorrect)\b/i,
+    /\bsubscription\b.*\b(?:expired|not have|invalid)\b/i,
+    /\bdoes not have a valid\b/i,
+  ].some((pattern) => pattern.test(normalized));
 }
 
 function sanitizeSessionId(value) {
@@ -245,6 +260,7 @@ module.exports = {
   cloneSkillRepo,
   createSoulDistiller,
   ensureSoulDistillerSkill,
+  looksLikeProviderError,
   loadDotSkillContext,
   sanitizeDistilledSoul,
 };
