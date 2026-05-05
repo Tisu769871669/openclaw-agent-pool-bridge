@@ -86,6 +86,19 @@ test("buildMoment uses wx headImage for video cover and im media type 3 for vide
   ]);
 });
 
+test("buildMoment allows text-only moments", () => {
+  const moment = buildMoment({
+    platform: "wx",
+    content: "纯文本朋友圈测试",
+    authorVids: ["wxid_sender"],
+    visibleTo: ["wxid_friend"],
+  });
+
+  assert.equal(moment.content, "纯文本朋友圈测试");
+  assert.deepEqual(moment.mediaList, []);
+  assert.equal(moment.xid, "wxid_friend");
+});
+
 test("createMessageItem and createSendMessageContent encode the two rich-message formats", () => {
   assert.deepEqual(createMessageItem({ kind: "text", value: "111" }), { type: 0, content: "111" });
   assert.deepEqual(createSendMessageContent({ kind: "file", url: "https://lx.metast.cn/a.pdf", name: "a.pdf" }), {

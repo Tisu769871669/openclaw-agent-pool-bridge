@@ -185,8 +185,15 @@ function buildSopEvent(event = {}) {
 function buildMoment(input = {}) {
   const platform = normalizePlatform(input.platform || "wx");
   const media = input.media || input.mediaList || [];
-  if (!Array.isArray(media) || media.length === 0) {
-    throw new Error("media must include at least one image or video");
+  if (!Array.isArray(media)) {
+    throw new Error("media must be an array");
+  }
+
+  const content = asString(input.content);
+  const title = asString(input.title);
+  const contentUrl = asString(input.contentUrl);
+  if (media.length === 0 && !content.trim() && !title.trim() && !contentUrl.trim()) {
+    throw new Error("moment content, contentUrl, or media is required");
   }
 
   let headImage = asString(input.headImage);
@@ -221,9 +228,9 @@ function buildMoment(input = {}) {
     planSendTime: Object.prototype.hasOwnProperty.call(input, "planSendTime") ? input.planSendTime : null,
     visibleType: input.visibleType ?? 1,
     headImage,
-    content: asString(input.content),
-    title: asString(input.title),
-    contentUrl: asString(input.contentUrl),
+    content,
+    title,
+    contentUrl,
     mediaList,
     authorVids: input.authorVids || input.authors || [],
     xid: Array.isArray(input.visibleTo) ? input.visibleTo.join(",") : asString(input.xid),

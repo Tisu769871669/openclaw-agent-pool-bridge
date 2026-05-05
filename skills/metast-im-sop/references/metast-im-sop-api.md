@@ -101,6 +101,22 @@ Contact list:
 
 ## Moment Body
 
+Text-only Moment:
+
+```json
+{
+  "planSendTime": null,
+  "visibleType": 1,
+  "headImage": "",
+  "content": "朋友圈纯文本测试",
+  "title": "",
+  "contentUrl": "",
+  "mediaList": [],
+  "authorVids": ["sender account id"],
+  "xid": "visible friend ids joined by comma"
+}
+```
+
 Image Moment:
 
 ```json

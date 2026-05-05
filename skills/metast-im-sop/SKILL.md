@@ -77,7 +77,8 @@ node skills/metast-im-sop/scripts/metast-im-sop.js \
 
 - When generating personal WeChat Moments or WeCom customer Moments, read the current logical agent workspace's `WECHAT_MOMENTS_PERSONA.md` before drafting `moment.json`.
 - This file controls Moments copy tone, CTA boundaries, image2 prompt style, and publish safety. Do not derive Moments persona from `SOUL.md` or `WECHAT_ARTICLE_PERSONA.md`.
-- Use `article-image-generator` / image2 only for original image assets; upload or otherwise host generated images first, then put accessible URLs into `moment.json` `media` / `mediaList`.
+- Text-only Moments are supported with `content` and an empty or omitted `media` / `mediaList`.
+- Use `article-image-generator` / image2 only when original image assets are needed; upload or otherwise host generated images first, then put accessible URLs into `moment.json` `media` / `mediaList`.
 - This skill is the final interface builder/sender for Moments. Keep content generation and image planning aligned with `WECHAT_MOMENTS_PERSONA.md`, then run `--action moment`.
 - Do not copy the persona prompt text into Moment content, audit logs, or public image captions.
 

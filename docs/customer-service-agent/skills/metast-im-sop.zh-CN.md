@@ -56,8 +56,8 @@ PUT /api/agents/:agentId/wechat-moments-persona
 推荐链路：
 
 1. 读取 `WECHAT_MOMENTS_PERSONA.md`，生成朋友圈短文案和 image2 生图计划。
-2. 通过 image2 生成原创图片，并上传/托管成 Metast 可访问的图片 URL。
-3. 生成 `moment.json`，把文案写入 `content`，把图片 URL 写入 `media` / `mediaList`。
+2. 如果本次需要配图，再通过 image2 生成原创图片，并上传/托管成 Metast 可访问的图片 URL；纯文本朋友圈可以不传图片。
+3. 生成 `moment.json`，把文案写入 `content`；纯文本时 `media` / `mediaList` 可为空数组或省略。
 4. 先用 `metast-im-sop --action moment --mode dry-run` 校验 payload 和审计日志。
 5. 只有用户明确批准真实外发，并且 profile 开启 `safety.allowSubmit=true`，才使用 `--mode submit --confirm-send`。
 
