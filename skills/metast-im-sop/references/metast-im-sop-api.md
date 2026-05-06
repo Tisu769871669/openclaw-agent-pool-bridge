@@ -19,10 +19,10 @@ https://lx.metast.cn
 
 ## Platform Mapping
 
-| Platform | Meaning | Friend List | SOP / Moment Endpoint |
-| --- | --- | --- | --- |
-| `wx` | 个微 / personal WeChat | `GET /prod-api/system/api/im/getWxFrendList` | `POST /prod-api/system/api/im/sendWxSopChatMesage` |
-| `im` | 企微 / WeCom | `GET /prod-api/system/api/im/getImFrendList` | `POST /prod-api/system/api/im/sendImSopChatMesage` |
+| Platform | Meaning | Friend List | SOP Endpoint | Moment Endpoint |
+| --- | --- | --- | --- | --- |
+| `wx` | 个微 / personal WeChat | `GET /prod-api/system/api/im/getWxFrendList` | `POST /prod-api/system/api/im/sendWxSopChatMesage` | `POST /prod-api/system/api/im/sendWxMomentChatMesage` |
+| `im` | 企微 / WeCom | `GET /prod-api/system/api/im/getImFrendList` | `POST /prod-api/system/api/im/sendImSopChatMesage` | `POST /prod-api/system/api/im/sendImMomentChatMesage` |
 
 Friend list query params:
 

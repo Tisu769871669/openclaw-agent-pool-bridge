@@ -12,8 +12,8 @@
 | 企微联系人 | 已脚本化 | `GET /prod-api/system/api/im/getImFrendList` |
 | 个微 SOP | 已脚本化 | `POST /prod-api/system/api/im/sendWxSopChatMesage` |
 | 企微 SOP | 已脚本化 | `POST /prod-api/system/api/im/sendImSopChatMesage` |
-| 个微朋友圈 | 已脚本化 | 复用 `sendWxSopChatMesage`，body 为 Moment DTO |
-| 企微客户朋友圈 | 已脚本化 | 复用 `sendImSopChatMesage`，视频封面用 `mediaList.type=3` |
+| 个微朋友圈 | 已脚本化 | `POST /prod-api/system/api/im/sendWxMomentChatMesage`，body 为 Moment DTO |
+| 企微客户朋友圈 | 已脚本化 | `POST /prod-api/system/api/im/sendImMomentChatMesage`，视频封面用 `mediaList.type=3` |
 | 老私聊发消息 | 仅 body builder | SOP 文件没有给 endpoint，需要 profile 补 `sendChatMessagePath` |
 | 主动状态接口 | 仅 body builder | SOP 文件没有给 endpoint，需要 profile 补 `activeStatusPath` |
 | 知识库/聊天记录/朋友圈设定上传 | 仅 reference | SOP 文件没有给 endpoint，不能擅自发 live 请求 |
@@ -36,7 +36,7 @@ dry-run 不调用网络，只生成 payload 并写审计文件：
 
 ## 朋友圈人设与发朋友圈链路
 
-`metast-im-sop` 里已经有朋友圈配套能力：`--action moment`。它负责把 `moment.json` 变成 Metast 个微/企微朋友圈 DTO，并在 submit 模式下调用对应 SOP endpoint。
+`metast-im-sop` 里已经有朋友圈配套能力：`--action moment`。它负责把 `moment.json` 变成 Metast 个微/企微朋友圈 DTO，并在 submit 模式下调用对应 Moment endpoint。
 
 朋友圈内容人设不从 `SOUL.md` 走，也不复用公众号文章的 `WECHAT_ARTICLE_PERSONA.md`。每个 logical agent 维护独立的 `WECHAT_MOMENTS_PERSONA.md`：
 

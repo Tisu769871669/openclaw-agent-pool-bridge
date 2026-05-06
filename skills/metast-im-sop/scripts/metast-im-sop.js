@@ -129,7 +129,7 @@ function buildRequest(args, profile, options = {}) {
   }
   if (args.action === "moment") {
     return {
-      endpoint: config.sopPath,
+      endpoint: config.momentPath,
       method: "POST",
       payload: buildMoment({ platform, ...input }),
     };

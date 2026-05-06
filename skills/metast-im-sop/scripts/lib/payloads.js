@@ -4,12 +4,14 @@ const PLATFORM_CONFIGS = {
     label: "personal-wechat",
     friendsPath: "/prod-api/system/api/im/getWxFrendList",
     sopPath: "/prod-api/system/api/im/sendWxSopChatMesage",
+    momentPath: "/prod-api/system/api/im/sendWxMomentChatMesage",
   },
   im: {
     key: "im",
     label: "wecom",
     friendsPath: "/prod-api/system/api/im/getImFrendList",
     sopPath: "/prod-api/system/api/im/sendImSopChatMesage",
+    momentPath: "/prod-api/system/api/im/sendImMomentChatMesage",
   },
 };
 

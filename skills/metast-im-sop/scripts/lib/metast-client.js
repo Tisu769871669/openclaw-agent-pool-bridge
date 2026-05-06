@@ -30,7 +30,7 @@ class MetastImClient {
   }
 
   async submitMoment(platform, moment) {
-    return this.requestJson("POST", getPlatformConfig(platform).sopPath, { body: moment });
+    return this.requestJson("POST", getPlatformConfig(platform).momentPath, { body: moment });
   }
 
   async postCustom(path, body) {

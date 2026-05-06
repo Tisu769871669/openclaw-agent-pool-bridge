@@ -12,6 +12,8 @@ const {
 test("getPlatformConfig maps personal WeChat and WeCom endpoints", () => {
   assert.equal(getPlatformConfig("wx").friendsPath, "/prod-api/system/api/im/getWxFrendList");
   assert.equal(getPlatformConfig("wecom").sopPath, "/prod-api/system/api/im/sendImSopChatMesage");
+  assert.equal(getPlatformConfig("wx").momentPath, "/prod-api/system/api/im/sendWxMomentChatMesage");
+  assert.equal(getPlatformConfig("im").momentPath, "/prod-api/system/api/im/sendImMomentChatMesage");
 });
 
 test("buildSopTask creates an S0 task with fixed defaults and rich items", () => {

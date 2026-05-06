@@ -48,6 +48,25 @@ test("submitSopTask posts JSON body to WeCom SOP endpoint", async () => {
   assert.equal(JSON.parse(seen[0].options.body).taskName, "任务");
 });
 
+test("submitMoment posts JSON body to dedicated personal WeChat Moment endpoint", async () => {
+  const seen = [];
+  const client = new MetastImClient({
+    baseUrl: "https://lx.metast.cn",
+    mcpKey: "key-1",
+    mcpSecret: "secret-1",
+    fetchImpl: async (url, options) => {
+      seen.push({ url, options });
+      return jsonResponse({ code: 200, data: { momentId: "moment-1" }, msg: "ok" });
+    },
+  });
+
+  const result = await client.submitMoment("wx", { content: "朋友圈", mediaList: [] });
+
+  assert.equal(result.data.momentId, "moment-1");
+  assert.equal(seen[0].url, "https://lx.metast.cn/prod-api/system/api/im/sendWxMomentChatMesage");
+  assert.equal(JSON.parse(seen[0].options.body).content, "朋友圈");
+});
+
 test("API failures throw useful MetastImApiError", async () => {
   const client = new MetastImClient({
     baseUrl: "https://lx.metast.cn",

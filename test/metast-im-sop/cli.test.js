@@ -62,6 +62,33 @@ test("dry-run builds SOP task and writes audit without calling network", async (
   assert.match(fs.readFileSync(result.audit.markdownPath, "utf8"), /sop-task/);
 });
 
+test("dry-run builds Moment payload against the dedicated Moment endpoint", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "metast-moment-dry-"));
+  const inputPath = path.join(dir, "moment.json");
+  fs.writeFileSync(inputPath, JSON.stringify({
+    content: "朋友圈测试",
+    authorVids: ["1688857486393533"],
+    media: [{ kind: "image", url: "https://lx.metast.cn/imfile/image.jpg" }],
+  }));
+
+  const result = await main([
+    "--mode", "dry-run",
+    "--action", "moment",
+    "--platform", "im",
+    "--profile", "example",
+    "--input-json", inputPath,
+    "--root-dir", dir,
+    "--profiles-dir", profilesDir,
+  ], {}, {
+    fetchImpl: async () => {
+      throw new Error("dry-run should not call fetch");
+    },
+  });
+
+  assert.equal(result.record.endpoint, "/prod-api/system/api/im/sendImMomentChatMesage");
+  assert.equal(result.payload.content, "朋友圈测试");
+});
+
 test("submit mode requires explicit confirmation", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "metast-sop-confirm-"));
   const inputPath = path.join(dir, "task.json");

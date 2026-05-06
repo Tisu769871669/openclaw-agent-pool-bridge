@@ -308,12 +308,12 @@ Body 结构同上，但 `accountId` / `friendId` 使用企微侧 ID。
 
 ### 5.5 发送纯文本朋友圈 / 企微客户朋友圈
 
-朋友圈复用 SOP endpoint，但 Body 是 Moment DTO，不是 SOP 任务 DTO。
+朋友圈使用独立 Moment endpoint，Body 是 Moment DTO，不是 SOP 任务 DTO。
 
 个微朋友圈：
 
 ```http
-POST {{METAST_BASE_URL}}/prod-api/system/api/im/sendWxSopChatMesage
+POST {{METAST_BASE_URL}}/prod-api/system/api/im/sendWxMomentChatMesage
 mcpKey: {{METAST_MCP_KEY}}
 mcpSecret: {{METAST_MCP_SECRET}}
 Content-Type: application/json
@@ -322,7 +322,7 @@ Content-Type: application/json
 企微客户朋友圈把 URL 换成：
 
 ```http
-POST {{METAST_BASE_URL}}/prod-api/system/api/im/sendImSopChatMesage
+POST {{METAST_BASE_URL}}/prod-api/system/api/im/sendImMomentChatMesage
 ```
 
 纯文本 Body：
