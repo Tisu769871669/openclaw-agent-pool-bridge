@@ -46,6 +46,37 @@ node skills/wechat-official-account/scripts/wechat-official-account.js \
   --thumb-media-id COVER_MEDIA_ID
 ```
 
+群发通知粉丝：
+
+```bash
+node skills/wechat-official-account/scripts/wechat-official-account.js \
+  --mode notify \
+  --profile huizhong-yun-qifu \
+  --article-json article.with-images.json
+```
+
+`publish` 和 `notify` 是两个不同链路：
+
+- `publish`：创建草稿后调用 `freepublish/submit`，进入后台发表记录，可能显示“未通知”。
+- `notify`：创建草稿后调用 `message/mass/sendall`，会通知粉丝并消耗公众号群发额度。
+- 已经发表过的 `media_id` 不能直接拿来群发；需要基于文章包重新创建草稿，再走 `notify`。
+- 微信返回 `45028 has no masssend quota` 表示当前账号群发额度不足，需要等待额度恢复或人工处理。
+
+惠众云祈福自动发布 profile：
+
+```bash
+WECHAT_MP_APP_ID=... WECHAT_MP_APP_SECRET=... \
+node skills/wechat-official-account/scripts/wechat-official-account.js \
+  --mode publish \
+  --profile huizhong-yun-qifu \
+  --article-json article.json \
+  --cover-path cover.jpg
+```
+
+这个 profile 默认每天最多自动发布 1 篇，内容方向是传统文化、节气、祭拜。写作时应保持庄重、温和、朴素，不承诺“灵验”“转运”，不做恐吓式因果或付费改命表达。
+
+惠众云祈福测试服已联动 `article-image-generator`。日更脚本在真实发布/通知模式会先生成 `article.with-images.json`，再把其中的 `coverPath` 和正文图交给公众号 skill 上传；`dry-run` 只生成 `image-plan.json` 和 `image-dry-run.json`。
+
 带新图片创建草稿：
 
 ```bash
@@ -127,7 +158,7 @@ profile 可以配置 `articleFooter`。它会在正文末尾自动追加引导�
 
 小程序字段不完整时，脚本不会渲染 `<mp-miniprogram>`，避免生成无效卡片。二维码和小程序 CTA 都由 profile 自动追加，文章正文里不要手写。
 
-运行 `draft-only` 或 `publish` 前，需要通过环境变量提供公众号凭证：
+运行 `draft-only`、`publish` 或 `notify` 前，需要通过环境变量提供公众号凭证：
 
 ```env
 WECHAT_MP_APP_ID=
@@ -160,3 +191,14 @@ node skills/wechat-official-account/scripts/wechat-official-account.js \
   --profile snowchuang-yihuang \
   --article-json article.with-images.json
 ```
+
+## 参考来源 / References
+
+本 skill 的边界应对齐以下来源：
+
+- 微信官方草稿产品说明：https://developers.weixin.qq.com/doc/subscription/guide/product/draft.html
+- 微信官方发布能力：https://developers.weixin.qq.com/doc/offiaccount/Publish/Publish.html
+- 微信官方群发接口：https://developers.weixin.qq.com/doc/offiaccount/Message_Management/Batch_Sends_and_Originality_Checks.html
+- 公众号 Markdown 排版参考：https://github.com/geekjourneyx/md2wechat-skill
+- 公众号文章技能参考：https://github.com/BND-1/wechat_article_skills
+- 内容运营工作流参考：https://github.com/autoclaw-cc/xiaohongshu-skills

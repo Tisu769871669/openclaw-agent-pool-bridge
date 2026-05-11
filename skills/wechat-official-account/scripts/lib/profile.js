@@ -79,8 +79,8 @@ function validateProfile(profile) {
     throw new Error("publishPolicy is required");
   }
   const mode = profile.publishPolicy.defaultMode;
-  if (!["dry-run", "draft-only", "publish"].includes(mode)) {
-    throw new Error("publishPolicy.defaultMode must be dry-run, draft-only, or publish");
+  if (!["dry-run", "draft-only", "publish", "notify"].includes(mode)) {
+    throw new Error("publishPolicy.defaultMode must be dry-run, draft-only, publish, or notify");
   }
   if (profile.articleFooter?.enabled) {
     for (const image of profile.articleFooter.qrImages) {

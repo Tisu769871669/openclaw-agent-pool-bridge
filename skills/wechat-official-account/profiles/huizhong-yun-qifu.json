@@ -1,0 +1,19 @@
+{
+  "id": "huizhong-yun-qifu",
+  "subject": "惠众云祈福",
+  "officialAccount": "惠众云祈福",
+  "direction": ["传统文化", "节气", "祭拜"],
+  "defaultAuthor": "惠众云祈福",
+  "defaultTheme": "traditional-culture-calendar",
+  "publishPolicy": {
+    "defaultMode": "publish",
+    "requireManualConfirmation": false,
+    "requireComplianceCheck": true,
+    "maxAutoPublishPerDay": 1
+  },
+  "contentRules": {
+    "voice": "庄重、温和、朴素、有文化感，重在传统文化科普、节气生活提醒和祭拜礼仪说明",
+    "avoid": ["保证灵验", "包转运", "恐吓式因果", "付费改命", "绝对功德", "医疗承诺", "投资承诺"]
+  },
+  "sourcePreferences": ["二十四节气资料", "传统民俗和礼仪常识", "公开可核验资料", "用户提供的活动或祭拜主题"]
+}

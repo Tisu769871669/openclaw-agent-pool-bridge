@@ -37,6 +37,8 @@ function writeAuditRecord({ rootDir = process.cwd(), record }) {
     `- Status: ${clean.status || ""}`,
     `- Draft media_id: ${clean.draftMediaId || ""}`,
     `- Publish id: ${clean.publishId || ""}`,
+    `- Mass msg_id: ${clean.msgId || ""}`,
+    `- Mass msg_data_id: ${clean.msgDataId || ""}`,
   ];
   fs.appendFileSync(markdownPath, `${lines.join("\n")}\n`, "utf8");
 

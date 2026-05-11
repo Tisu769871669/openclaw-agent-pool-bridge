@@ -58,6 +58,20 @@ class WeChatMpClient {
     return this.postJson("/cgi-bin/freepublish/get", { publish_id: publishId });
   }
 
+  async sendMassMpNews(mediaId, options = {}) {
+    const body = {
+      filter: buildMassSendFilter(options),
+      mpnews: { media_id: mediaId },
+      msgtype: "mpnews",
+      send_ignore_reprint: options.sendIgnoreReprint ? 1 : 0,
+    };
+    return this.postJson("/cgi-bin/message/mass/sendall", body);
+  }
+
+  async getMassSendStatus(msgId) {
+    return this.postJson("/cgi-bin/message/mass/get", { msg_id: msgId });
+  }
+
   async postJson(path, body) {
     const token = await this.getAccessToken();
     const url = `${this.baseUrl}${path}?access_token=${encodeURIComponent(token)}`;
@@ -95,6 +109,16 @@ class WeChatMpClient {
     }
     return payload;
   }
+}
+
+function buildMassSendFilter(options = {}) {
+  if (options.tagId !== undefined && options.tagId !== null && String(options.tagId).trim()) {
+    return {
+      is_to_all: false,
+      tag_id: Number(options.tagId),
+    };
+  }
+  return { is_to_all: true };
 }
 
 function normalizeMedia(media, options = {}) {

@@ -1,0 +1,9 @@
+{
+  "id": "huizhong-yun-qifu",
+  "subject": "惠众云祈福",
+  "defaultModel": "gpt-image-2",
+  "defaultSize": "1024x1024",
+  "styleGuide": "庄重、温和、朴素、有传统文化气息；适合微信公众号封面和正文配图；画面可包含节气物候、香案、花果、古籍、窗棂、山水、烛光等意象；不含文字、水印、logo，不表现恐吓、迷信承诺或可识别私人面孔。",
+  "promptPrefix": "Create an original image for a restrained Chinese traditional culture WeChat official account article.",
+  "blockedPromptTerms": ["保证灵验", "包转运", "恐吓", "付费改命", "绝对功德", "水印", "logo"]
+}

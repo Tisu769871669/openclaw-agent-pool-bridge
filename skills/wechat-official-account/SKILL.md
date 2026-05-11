@@ -22,7 +22,7 @@ description: 编写微信公众号文章、搜索整理素材、上传草稿并�
 4. 先生成文章包，包含标题、摘要、作者、Markdown 正文、封面说明。
 5. 对大健康、金融、法律等高风险领域做合规检查。
 6. 使用 `scripts/wechat-official-account.js --mode dry-run` 预检查。
-7. 只有在用户明确要求自动发布，且 profile 允许时，才使用 `--mode publish`。
+7. 只有在用户明确要求自动发布，且 profile 允许时，才使用 `--mode publish` 或 `--mode notify`。
 8. 发布后检查输出和审计日志。
 
 ## 公众号人设文件
@@ -37,7 +37,10 @@ description: 编写微信公众号文章、搜索整理素材、上传草稿并�
 
 - `dry-run`：不调用微信 API。
 - `draft-only`：创建草稿，不发布。
-- `publish`：创建草稿并提交发布。
+- `publish`：创建草稿并提交发表记录，走 `freepublish/submit`，可能在后台显示“未通知”。
+- `notify`：创建草稿并群发通知粉丝，走 `message/mass/sendall`，会消耗公众号群发额度。
+
+不要把 `publish` 和 `notify` 混用：需要手机端公众号主页可见/粉丝收到通知时，用 `notify`；只需要后台发表记录和文章 URL 时，用 `publish`。
 
 ## 图片与排版
 
@@ -50,11 +53,13 @@ description: 编写微信公众号文章、搜索整理素材、上传草稿并�
 - 不要把写作指导放进正文，例如“这篇直接按小红书穿搭笔记的方式来”“短句、公式、避雷点、一屏一个重点”。这些只能放在 Agent prompt 里，不能进入 `markdown` 或 `html`。
 - 文末引导区由 profile 的 `articleFooter` 自动追加。生成正文时不要手写二维码区，避免重复。
 
+排版与内容 workflow 的本地参考来源记录在 `references/wechat-api.md`，包括微信官方草稿说明、`md2wechat-skill`、`wechat_article_skills` 和 `xiaohongshu-skills`。当前实现只吸收安全的公众号兼容 HTML、草稿/发布/群发边界和内容运营 workflow，不直接 vendoring 外部仓库代码。
+
 ## 文末 CTA
 
 profile 可配置 `articleFooter`：
 
-- `qrImages`：文末二维码图片，脚本会在 `draft-only`/`publish` 时上传并插入正文末尾。
+- `qrImages`：文末二维码图片，脚本会在 `draft-only`/`publish`/`notify` 时上传并插入正文末尾。
 - `miniProgram`：可选小程序卡片，只有配置了 `appId`、`path`、`title`、`imageUrl` 才会渲染 `<mp-miniprogram>`。
 
 雪创 `snowchuang-yihuang` 已配置企业微信和个人微信两个二维码；小程序参数未配置前不会插入无效小程序卡片。
@@ -65,8 +70,11 @@ profile 可配置 `articleFooter`：
 
 `profiles/snowchuang-yihuang.json` 用于雪创“衣荒救星站”。写作时保持亲切、实用、有画面感、适度成交；可以参考小红书标题节奏和穿搭公式，但必须原创，不照搬平台原文或图片。
 
+`profiles/huizhong-yun-qifu.json` 用于“惠众云祈福”。写作时保持庄重、温和、朴素、有文化感，围绕传统文化、节气、祭拜礼仪做科普和生活提醒；不承诺“灵验”“转运”，不做恐吓式因果或付费改命表达。
+
 ## 安全要求
 
 - 不把 `WECHAT_MP_APP_SECRET`、access token、密码写进 Git 或日志。
 - 服务器上配置凭证、改 env、改服务，必须先得到用户同意。
 - 自动发布必须留下审计日志。
+- `notify` 是真实群发通知能力，默认需要显式授权；遇到 `45028 has no masssend quota` 时停止并报告，不要自动重试。

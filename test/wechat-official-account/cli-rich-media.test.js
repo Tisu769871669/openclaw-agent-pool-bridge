@@ -187,6 +187,58 @@ test("draft-only appends configured footer QR images", async () => {
   assert.deepEqual(uploadedMedia.sort(), ["look.png", "personal.jpg", "wecom.jpg"]);
 });
 
+test("notify mode creates a draft and submits it to mass sendall", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-notify-mode-"));
+  const articlePath = path.join(dir, "article.json");
+  const coverPath = path.join(dir, "cover.jpg");
+  fs.writeFileSync(coverPath, "cover-bytes");
+  fs.writeFileSync(articlePath, JSON.stringify({
+    title: "节气提醒",
+    author: "惠众云祈福",
+    digest: "一篇用于群发通知的公众号测试稿。",
+    coverPath,
+    markdown: "## 今日节气\n\n愿心有所敬，行有所安。",
+  }));
+
+  const calls = [];
+  await main([
+    "--mode", "notify",
+    "--profile", "huizhong-yun-qifu",
+    "--article-json", articlePath,
+    "--profiles-dir", path.join(__dirname, "..", "..", "skills", "wechat-official-account", "profiles"),
+    "--root-dir", dir,
+  ], {
+    WECHAT_MP_APP_ID: "app",
+    WECHAT_MP_APP_SECRET: "secret",
+    WECHAT_MP_FETCH_IMPL: async (url, options = {}) => {
+      calls.push({ url, options });
+      if (url.includes("/cgi-bin/token")) {
+        return jsonResponse({ access_token: "token-1", expires_in: 7200 });
+      }
+      if (url.includes("/cgi-bin/material/add_material")) {
+        return jsonResponse({ media_id: "cover-media-id", url: "https://mmbiz.qpic.cn/cover.jpg" });
+      }
+      if (url.includes("/cgi-bin/draft/add")) {
+        return jsonResponse({ media_id: "draft-media-id" });
+      }
+      if (url.includes("/cgi-bin/message/mass/sendall")) {
+        const payload = JSON.parse(options.body);
+        assert.deepEqual(payload, {
+          filter: { is_to_all: true },
+          mpnews: { media_id: "draft-media-id" },
+          msgtype: "mpnews",
+          send_ignore_reprint: 0,
+        });
+        return jsonResponse({ msg_id: 123, msg_data_id: 456 });
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    },
+  });
+
+  assert.equal(calls.some((call) => call.url.includes("/cgi-bin/draft/add")), true);
+  assert.equal(calls.some((call) => call.url.includes("/cgi-bin/message/mass/sendall")), true);
+});
+
 function getMultipartFilename(form) {
   const entry = Array.from(form.entries()).find(([name]) => name === "media");
   assert.ok(entry, "media multipart field should exist");

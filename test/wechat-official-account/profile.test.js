@@ -31,9 +31,37 @@ test("loadProfile loads snowchuang-yihuang profile", () => {
   assert.equal(path.isAbsolute(profile.articleFooter.qrImages[0].path), true);
 });
 
+test("loadProfile loads huizhong-yun-qifu profile", () => {
+  const profile = loadProfile("huizhong-yun-qifu", {
+    profilesDir: path.join(__dirname, "..", "..", "skills", "wechat-official-account", "profiles"),
+  });
+
+  assert.equal(profile.id, "huizhong-yun-qifu");
+  assert.equal(profile.subject, "惠众云祈福");
+  assert.equal(profile.officialAccount, "惠众云祈福");
+  assert.deepEqual(profile.direction, ["传统文化", "节气", "祭拜"]);
+  assert.equal(profile.publishPolicy.defaultMode, "publish");
+  assert.equal(profile.publishPolicy.requireManualConfirmation, false);
+  assert.equal(profile.publishPolicy.maxAutoPublishPerDay, 1);
+  assert.match(profile.contentRules.voice, /庄重/);
+  assert.ok(profile.contentRules.avoid.includes("保证灵验"));
+});
+
 test("validateProfile rejects missing publish policy", () => {
   assert.throws(
     () => validateProfile({ id: "broken", subject: "测试" }),
     /publishPolicy is required/
   );
+});
+
+test("validateProfile accepts notify as an explicit mass-send mode", () => {
+  const profile = validateProfile({
+    id: "notify-profile",
+    subject: "通知测试",
+    publishPolicy: {
+      defaultMode: "notify",
+    },
+  });
+
+  assert.equal(profile.publishPolicy.defaultMode, "notify");
 });

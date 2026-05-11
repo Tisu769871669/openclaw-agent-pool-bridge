@@ -1,6 +1,6 @@
 # 文章生图 Skill / Article Image Generator
 
-`skills/article-image-generator/` is the shared OpenClaw skill for article image generation. It is the canonical copy for all customer-service agents, including Snowchuang and Sudan.
+`skills/article-image-generator/` is the shared OpenClaw skill for article image generation. It is the canonical copy for all customer-service agents, including Snowchuang, Sudan, and 惠众云祈福.
 
 中文说明：这个 skill 不再属于某一个特化客服。仓库根目录的 `skills/article-image-generator/` 是通用源，部署时把它安装进每个 logical agent 的 template workspace，然后同步到 worker。
 
@@ -13,6 +13,7 @@ openclaw-agent-pool-bridge/
     profiles/
       snowchuang-yihuang.json
       sudan-health.json
+      huizhong-yun-qifu.json
     scripts/
 
 /root/openclaw-agent-templates/<agent>/  # per-agent template on server
@@ -95,6 +96,7 @@ Generate images only when paid image generation is intended:
 ```bash
 IMAGE2_API_KEY="$IMAGE2_API_KEY" \
 IMAGE2_MODEL=gpt-image-2 \
+IMAGE2_FETCH_IMPL=curl \
 node skills/article-image-generator/scripts/article-image-generator.js \
   --mode generate \
   --image-plan image-plan.json \
@@ -137,3 +139,4 @@ PUT /api/agents/:agentId/wechat-moments-persona
 - Keep generated images and manifests in `tmp/` or another operational output directory.
 - Use `dry-run` before `generate` so the operator can see how many images will be created.
 - Use the included profiles for customer style defaults; add new profiles only when a new客服 needs distinct image style constraints.
+- If Node.js `fetch` cannot reach the image2-compatible endpoint from a server but `curl` can, set `IMAGE2_FETCH_IMPL=curl` in that server's runtime env.

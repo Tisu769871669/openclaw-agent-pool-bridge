@@ -19,6 +19,16 @@ test("loadImageProfile loads Snowchuang image defaults", () => {
   assert.match(profile.styleGuide, /韩系低饱和/);
 });
 
+test("loadImageProfile loads Huizhong Yun Qifu image defaults", () => {
+  const profile = loadImageProfile("huizhong-yun-qifu", { profilesDir });
+
+  assert.equal(profile.id, "huizhong-yun-qifu");
+  assert.equal(profile.defaultModel, "gpt-image-2");
+  assert.equal(profile.defaultSize, "1024x1024");
+  assert.match(profile.styleGuide, /传统文化/);
+  assert.ok(profile.blockedPromptTerms.includes("保证灵验"));
+});
+
 test("normalizeImagePlan applies profile defaults and prompt prefix", () => {
   const profile = loadImageProfile("example", { profilesDir });
   const plan = normalizeImagePlan({

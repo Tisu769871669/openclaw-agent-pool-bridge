@@ -1,3 +1,8 @@
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { spawnSync } = require("node:child_process");
+
 class Image2ApiError extends Error {
   constructor(message, options = {}) {
     super(message);
@@ -65,9 +70,9 @@ class Image2Client {
   constructor(options = {}) {
     this.apiKey = cleanText(options.apiKey);
     this.baseUrl = cleanText(options.baseUrl || "https://api.openai.com/v1");
-    this.fetchImpl = options.fetchImpl || globalThis.fetch;
     this.timeoutMs = parseNonNegativeInteger(options.timeoutMs, 0);
     this.maxRetries = parseNonNegativeInteger(options.maxRetries, 0);
+    this.fetchImpl = options.fetchImpl || selectFetchImpl(options);
 
     if (!this.apiKey) throw new Error("image2 api key is required");
     if (typeof this.fetchImpl !== "function") throw new Error("fetch implementation is required");
@@ -172,7 +177,109 @@ class Image2Client {
   }
 }
 
+function selectFetchImpl(options = {}) {
+  if (cleanText(options.fetchImplName).toLowerCase() === "curl") {
+    return createCurlFetch({
+      timeoutMs: options.timeoutMs,
+    });
+  }
+  return globalThis.fetch;
+}
+
+function createCurlFetch(options = {}) {
+  const timeoutMs = parseNonNegativeInteger(options.timeoutMs, 0);
+  const timeoutSeconds = timeoutMs > 0 ? Math.max(1, Math.ceil(timeoutMs / 1000)) : 0;
+  return async function curlFetch(url, request = {}) {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "image2-curl-"));
+    const headersPath = path.join(tempDir, "headers.txt");
+    const bodyPath = path.join(tempDir, "body.bin");
+    try {
+      const config = buildCurlConfig(url, request);
+      const args = [
+        "--silent",
+        "--show-error",
+        "--location",
+        "--dump-header",
+        headersPath,
+        "--output",
+        bodyPath,
+        "--write-out",
+        "%{http_code}",
+        "--config",
+        "-",
+      ];
+      if (timeoutSeconds > 0) {
+        args.splice(args.length - 2, 0, "--max-time", String(timeoutSeconds));
+      }
+      const result = spawnSync("curl", args, {
+        input: config,
+        encoding: "utf8",
+        maxBuffer: 1024 * 1024,
+      });
+      if (result.error) throw result.error;
+      if (result.status !== 0) {
+        throw new Image2ApiError(`curl exited with code ${result.status}: ${result.stderr || ""}`.trim(), {
+          body: result.stderr || "",
+          retryable: true,
+        });
+      }
+      const status = Number.parseInt(String(result.stdout || "").trim(), 10) || 0;
+      const body = fs.existsSync(bodyPath) ? fs.readFileSync(bodyPath) : Buffer.alloc(0);
+      const headers = parseCurlHeaders(fs.existsSync(headersPath) ? fs.readFileSync(headersPath, "utf8") : "");
+      return {
+        ok: status >= 200 && status < 300,
+        status,
+        headers,
+        async text() {
+          return body.toString("utf8");
+        },
+        async arrayBuffer() {
+          return body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength);
+        },
+      };
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  };
+}
+
+function buildCurlConfig(url, request = {}) {
+  const lines = [`url = ${quoteCurlConfigValue(url)}`];
+  if (request.method) {
+    lines.push(`request = ${quoteCurlConfigValue(request.method)}`);
+  }
+  const headers = request.headers || {};
+  for (const [key, value] of Object.entries(headers)) {
+    lines.push(`header = ${quoteCurlConfigValue(`${key}: ${value}`)}`);
+  }
+  if (request.body !== undefined) {
+    lines.push(`data = ${quoteCurlConfigValue(String(request.body))}`);
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function quoteCurlConfigValue(value) {
+  return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+function parseCurlHeaders(raw) {
+  const blocks = String(raw || "").trim().split(/\r?\n\r?\n/).filter(Boolean);
+  const last = blocks[blocks.length - 1] || "";
+  const map = new Map();
+  for (const line of last.split(/\r?\n/)) {
+    const index = line.indexOf(":");
+    if (index <= 0) continue;
+    map.set(line.slice(0, index).trim().toLowerCase(), line.slice(index + 1).trim());
+  }
+  return {
+    get(name) {
+      return map.get(String(name || "").toLowerCase()) || "";
+    },
+  };
+}
+
 module.exports = {
+  createCurlFetch,
   Image2ApiError,
   Image2Client,
   redactSecret,

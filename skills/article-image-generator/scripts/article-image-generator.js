@@ -52,6 +52,7 @@ function buildClient(env, options) {
     baseUrl: env.IMAGE2_API_BASE_URL,
     timeoutMs: env.IMAGE2_TIMEOUT_MS,
     maxRetries: env.IMAGE2_MAX_RETRIES,
+    fetchImplName: env.IMAGE2_FETCH_IMPL,
     fetchImpl: options.fetchImpl,
   });
 }

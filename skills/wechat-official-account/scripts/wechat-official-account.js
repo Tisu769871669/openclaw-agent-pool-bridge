@@ -38,7 +38,7 @@ function loadArticle(filePath) {
 
 function createClientFromEnv(env) {
   if (!env.WECHAT_MP_APP_ID || !env.WECHAT_MP_APP_SECRET) {
-    throw new Error("WECHAT_MP_APP_ID and WECHAT_MP_APP_SECRET are required for draft-only or publish mode");
+    throw new Error("WECHAT_MP_APP_ID and WECHAT_MP_APP_SECRET are required for draft-only, publish, or notify mode");
   }
   return new WeChatMpClient({
     appId: env.WECHAT_MP_APP_ID,
@@ -49,8 +49,8 @@ function createClientFromEnv(env) {
 
 async function main(argv = process.argv.slice(2), env = process.env) {
   const args = parseArgs(argv);
-  if (!["dry-run", "draft-only", "publish"].includes(args.mode)) {
-    throw new Error("--mode must be dry-run, draft-only, or publish");
+  if (!["dry-run", "draft-only", "publish", "notify"].includes(args.mode)) {
+    throw new Error("--mode must be dry-run, draft-only, publish, or notify");
   }
 
   const profile = loadProfile(args.profile, { profilesDir: args.profilesDir });
@@ -86,7 +86,7 @@ async function main(argv = process.argv.slice(2), env = process.env) {
       record.coverMediaId = cover.media_id;
     }
     if (!thumbMediaId) {
-      throw new Error("--thumb-media-id or --cover-path/article.coverPath is required for draft-only or publish mode");
+      throw new Error("--thumb-media-id or --cover-path/article.coverPath is required for draft-only, publish, or notify mode");
     }
     const imageUrls = {};
     const footerImages = footer?.qrImages || [];
@@ -120,6 +120,11 @@ async function main(argv = process.argv.slice(2), env = process.env) {
       const publish = await client.submitFreePublish(draft.media_id);
       record.status = "publish-submitted";
       record.publishId = publish.publish_id;
+    } else if (args.mode === "notify") {
+      const notification = await client.sendMassMpNews(draft.media_id);
+      record.status = "notify-submitted";
+      record.msgId = notification.msg_id;
+      record.msgDataId = notification.msg_data_id;
     }
   }
 

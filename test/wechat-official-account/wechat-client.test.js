@@ -92,6 +92,53 @@ test("uploadPermanentImage posts material image payload", async () => {
   assert.ok(seen[1].options.body instanceof FormData);
 });
 
+test("sendMassMpNews posts mpnews media_id to mass sendall", async () => {
+  const seen = [];
+  const client = new WeChatMpClient({
+    appId: "app",
+    appSecret: "secret",
+    fetchImpl: async (url, options) => {
+      seen.push({ url, options });
+      if (url.includes("/cgi-bin/token")) {
+        return jsonResponse({ access_token: "token-1", expires_in: 7200 });
+      }
+      return jsonResponse({ msg_id: 123, msg_data_id: 456 });
+    },
+  });
+
+  const result = await client.sendMassMpNews("draft-media-id");
+
+  assert.equal(result.msg_id, 123);
+  assert.match(seen[1].url, /message\/mass\/sendall/);
+  assert.deepEqual(JSON.parse(seen[1].options.body), {
+    filter: { is_to_all: true },
+    mpnews: { media_id: "draft-media-id" },
+    msgtype: "mpnews",
+    send_ignore_reprint: 0,
+  });
+});
+
+test("getMassSendStatus posts msg_id to mass get", async () => {
+  const seen = [];
+  const client = new WeChatMpClient({
+    appId: "app",
+    appSecret: "secret",
+    fetchImpl: async (url, options) => {
+      seen.push({ url, options });
+      if (url.includes("/cgi-bin/token")) {
+        return jsonResponse({ access_token: "token-1", expires_in: 7200 });
+      }
+      return jsonResponse({ msg_id: 123, msg_status: "SEND_SUCCESS" });
+    },
+  });
+
+  const result = await client.getMassSendStatus(123);
+
+  assert.equal(result.msg_status, "SEND_SUCCESS");
+  assert.match(seen[1].url, /message\/mass\/get/);
+  assert.deepEqual(JSON.parse(seen[1].options.body), { msg_id: 123 });
+});
+
 test("wechat API error throws useful error", async () => {
   const client = new WeChatMpClient({
     appId: "app",
